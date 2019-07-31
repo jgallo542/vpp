@@ -485,12 +485,12 @@ type TunnelTestingData struct {
 	ipNet       *IPNet
 }
 
-func TestPodTunnel(t *testing.T) {
+func TestPodTunnelIPv4(t *testing.T) {
 	RegisterTestingT(t)
 	var txnCount int
 
-	fixture := NewFixture("TestPodTunnel")
-	data := newTunnelTestingData(fixture)
+	fixture := NewFixture("TestPodTunnelIPv4")
+	data := newTunnelTestingData(fixture, 4)
 	srv6Handler := data.srv6Handler
 	contivConf := data.contivConf
 	plugin := data.ipNet
@@ -527,7 +527,7 @@ func TestPodTunnel(t *testing.T) {
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
-	addr, network, _ := net.ParseCIDR(node2IP)
+	addr, network, _ := data.ipam.NodeIPAddress(node2ID)
 	mgmt := net.ParseIP(node2MgmtIP)
 	node2 := &nodesync.Node{
 		Name:            node2Name,
@@ -549,12 +549,76 @@ func TestPodTunnel(t *testing.T) {
 	assertIngress(ipam, contivConf, plugin, srv6Handler)
 }
 
-func TestHostTunnel(t *testing.T) {
+func TestPodTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
 	var txnCount int
 
-	fixture := NewFixture("TestHostTunnel")
-	data := newTunnelTestingData(fixture)
+	fixture := NewFixture("TestPodTunnelIPv6")
+	data := newTunnelTestingData(fixture, 6)
+	srv6Handler := data.srv6Handler
+	contivConf := data.contivConf
+	plugin := data.ipNet
+	ipam := data.ipam
+
+	txnTracker := localclient.NewTxnTracker(srv6Handler.ApplyTxn)
+
+	fmt.Println("Resync against empty K8s state ---------------------------")
+
+	// resync against empty K8s state data
+	resyncEv, resyncCount := fixture.Datasync.ResyncEvent(keyPrefixes...)
+	Expect(contivConf.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	Expect(ipam.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	txn := txnTracker.NewControllerTxn(true)
+	err := plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	nodeIP := &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
+	Expect(nodeIP.String()).To(Equal(Gbe8IP))
+
+	podTunnelEgressLocalSid := &vpp_srv6.LocalSID{
+		Sid:               ipam.SidForNodeToNodePodLocalsid(nodeIP.IP).String(),
+		InstallationVrfId: contivConf.GetRoutingConfig().MainVRFID,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+			VrfId: contivConf.GetRoutingConfig().PodVRFID,
+		}},
+	}
+	Expect(srv6Handler.LocalSids).To(ContainElement(podTunnelEgressLocalSid))
+
+	fmt.Println("Add another node -----------------------------------------")
+
+	// add another node
+	addr, network, _ := data.ipam.NodeIPAddress(node2ID)
+	mgmt := net.ParseIP(node2MgmtIP)
+	node2 := &nodesync.Node{
+		Name:            node2Name,
+		ID:              node2ID,
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: addr, Network: network}},
+		MgmtIPAddresses: []net.IP{mgmt},
+	}
+	nodeUpdateEvent := fixture.NodeSync.UpdateNode(node2)
+	txn = txnTracker.NewControllerTxn(false)
+	change, err := plugin.Update(nodeUpdateEvent, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("connect node ID=2"))
+	err = commitTransaction(txn, false)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	assertIngress(ipam, contivConf, plugin, srv6Handler)
+}
+
+func TestHostTunnelIPv4(t *testing.T) {
+	RegisterTestingT(t)
+	var txnCount int
+
+	fixture := NewFixture("TestHostTunnelIPv4")
+	data := newTunnelTestingData(fixture, 4)
 	srv6Handler := data.srv6Handler
 	contivConf := data.contivConf
 	plugin := data.ipNet
@@ -591,7 +655,7 @@ func TestHostTunnel(t *testing.T) {
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
-	addr, network, _ := net.ParseCIDR(node2IP)
+	addr, network, _ := data.ipam.NodeIPAddress(node2ID)
 	mgmt := net.ParseIP(node2MgmtIP)
 	node2 := &nodesync.Node{
 		Name:            node2Name,
@@ -613,12 +677,76 @@ func TestHostTunnel(t *testing.T) {
 	assertIngress(ipam, contivConf, plugin, srv6Handler)
 }
 
-func TestIntermServiceTunnel(t *testing.T) {
+func TestHostTunnelIPv6(t *testing.T) {
 	RegisterTestingT(t)
 	var txnCount int
 
-	fixture := NewFixture("TestIntermServiceTunnel")
-	data := newTunnelTestingData(fixture)
+	fixture := NewFixture("TestHostTunnelIPv6")
+	data := newTunnelTestingData(fixture, 6)
+	srv6Handler := data.srv6Handler
+	contivConf := data.contivConf
+	plugin := data.ipNet
+	ipam := data.ipam
+
+	txnTracker := localclient.NewTxnTracker(srv6Handler.ApplyTxn)
+
+	fmt.Println("Resync against empty K8s state ---------------------------")
+
+	// resync against empty K8s state data
+	resyncEv, resyncCount := fixture.Datasync.ResyncEvent(keyPrefixes...)
+	Expect(contivConf.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	Expect(ipam.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	txn := txnTracker.NewControllerTxn(true)
+	err := plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	nodeIP := &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
+	Expect(nodeIP.String()).To(Equal(Gbe8IP))
+
+	hostTunnelEgressLocalSid := &vpp_srv6.LocalSID{
+		Sid:               ipam.SidForNodeToNodeHostLocalsid(nodeIP.IP).String(),
+		InstallationVrfId: contivConf.GetRoutingConfig().MainVRFID,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+			VrfId: contivConf.GetRoutingConfig().MainVRFID,
+		}},
+	}
+	Expect(srv6Handler.LocalSids).To(ContainElement(hostTunnelEgressLocalSid))
+
+	fmt.Println("Add another node -----------------------------------------")
+
+	// add another node
+	addr, network, _ := data.ipam.NodeIPAddress(node2ID)
+	mgmt := net.ParseIP(node2MgmtIP)
+	node2 := &nodesync.Node{
+		Name:            node2Name,
+		ID:              node2ID,
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: addr, Network: network}},
+		MgmtIPAddresses: []net.IP{mgmt},
+	}
+	nodeUpdateEvent := fixture.NodeSync.UpdateNode(node2)
+	txn = txnTracker.NewControllerTxn(false)
+	change, err := plugin.Update(nodeUpdateEvent, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("connect node ID=2"))
+	err = commitTransaction(txn, false)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	assertIngress(ipam, contivConf, plugin, srv6Handler)
+}
+
+func TestIntermServiceTunnelIPv4(t *testing.T) {
+	RegisterTestingT(t)
+	var txnCount int
+
+	fixture := NewFixture("TestIntermServiceTunnelIPv4")
+	data := newTunnelTestingData(fixture, 4)
 	srv6Handler := data.srv6Handler
 	contivConf := data.contivConf
 	plugin := data.ipNet
@@ -655,7 +783,71 @@ func TestIntermServiceTunnel(t *testing.T) {
 	fmt.Println("Add another node -----------------------------------------")
 
 	// add another node
-	addr, network, _ := net.ParseCIDR(node2IP)
+	addr, network, _ := data.ipam.NodeIPAddress(node2ID)
+	mgmt := net.ParseIP(node2MgmtIP)
+	node2 := &nodesync.Node{
+		Name:            node2Name,
+		ID:              node2ID,
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: addr, Network: network}},
+		MgmtIPAddresses: []net.IP{mgmt},
+	}
+	nodeUpdateEvent := fixture.NodeSync.UpdateNode(node2)
+	txn = txnTracker.NewControllerTxn(false)
+	change, err := plugin.Update(nodeUpdateEvent, txn)
+	Expect(err).To(BeNil())
+	Expect(change).To(Equal("connect node ID=2"))
+	err = commitTransaction(txn, false)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+
+	assertIngress(ipam, contivConf, plugin, srv6Handler)
+}
+
+func TestIntermServiceTunnelIPv6(t *testing.T) {
+	RegisterTestingT(t)
+	var txnCount int
+
+	fixture := NewFixture("TestIntermServiceTunnelIPv6")
+	data := newTunnelTestingData(fixture, 6)
+	srv6Handler := data.srv6Handler
+	contivConf := data.contivConf
+	plugin := data.ipNet
+	ipam := data.ipam
+
+	txnTracker := localclient.NewTxnTracker(srv6Handler.ApplyTxn)
+
+	fmt.Println("Resync against empty K8s state ---------------------------")
+
+	// resync against empty K8s state data
+	resyncEv, resyncCount := fixture.Datasync.ResyncEvent(keyPrefixes...)
+	Expect(contivConf.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	Expect(ipam.Resync(resyncEv, resyncEv.KubeState, resyncCount, nil)).To(BeNil())
+	txn := txnTracker.NewControllerTxn(true)
+	err := plugin.Resync(resyncEv, resyncEv.KubeState, resyncCount, txn)
+	Expect(err).To(BeNil())
+	err = commitTransaction(txn, true)
+	Expect(err).To(BeNil())
+	txnCount++
+	Expect(txnTracker.PendingTxns).To(HaveLen(0))
+	Expect(txnTracker.CommittedTxns).To(HaveLen(txnCount))
+	nodeIP := &net.IPNet{IP: plugin.nodeIP, Mask: plugin.nodeIPNet.Mask}
+	Expect(nodeIP.String()).To(Equal(Gbe8IP))
+
+	hostTunnelEgressLocalSid := &vpp_srv6.LocalSID{
+		Sid:               ipam.SidForNodeToNodeHostLocalsid(nodeIP.IP).String(),
+		InstallationVrfId: contivConf.GetRoutingConfig().MainVRFID,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DT6{EndFunction_DT6: &vpp_srv6.LocalSID_EndDT6{
+			VrfId: contivConf.GetRoutingConfig().MainVRFID,
+		}},
+	}
+	Expect(srv6Handler.LocalSids).To(ContainElement(hostTunnelEgressLocalSid))
+
+	fmt.Println("Add another node -----------------------------------------")
+
+	// add another node
+	addr, network, _ := data.ipam.NodeIPAddress(node2ID)
 	mgmt := net.ParseIP(node2MgmtIP)
 	node2 := &nodesync.Node{
 		Name:            node2Name,
@@ -678,7 +870,7 @@ func TestIntermServiceTunnel(t *testing.T) {
 }
 
 func assertIngress(ipam *ipam.IPAM, contivConf *contivconf.ContivConf, plugin *IPNet, srv6Handler *handler.SRv6MockHandler) {
-	node2IP, err := plugin.otherNodeIP(node2ID)
+	node2IP, _, err := ipam.NodeIPAddress(node2ID)
 
 	nodeToNodePodSl := &vpp_srv6.Policy_SegmentList{
 		Weight: 1,
@@ -741,7 +933,7 @@ func assertIngress(ipam *ipam.IPAM, contivConf *contivconf.ContivConf, plugin *I
 		srv6Handler.Steerings)
 }
 
-func newTunnelTestingData(fixture *Fixture) *TunnelTestingData {
+func newTunnelTestingData(fixture *Fixture, ipVer uint8) *TunnelTestingData {
 
 	data := TunnelTestingData{
 		Fixture:     fixture,
@@ -792,6 +984,7 @@ func newTunnelTestingData(fixture *Fixture) *TunnelTestingData {
 			ContivConf: data.contivConf,
 		},
 	}
+	data.ipam.ContivConf.GetIPAMConfig().UseIPv6 = ipVer == 6
 
 	// ipNet plugin
 	externalState := &externalState{
