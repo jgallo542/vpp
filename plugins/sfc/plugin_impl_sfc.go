@@ -17,6 +17,8 @@ package sfc
 import (
 	"strings"
 
+	"github.com/contiv/vpp/plugins/sfc/renderer/srv6"
+
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/infra"
 	"github.com/ligato/cn-infra/servicelabel"
@@ -50,6 +52,7 @@ type Plugin struct {
 	// layers of the SFC plugin
 	processor       *processor.SFCProcessor
 	l2xconnRenderer *l2xconn.Renderer
+	srv6Renderer    *srv6.Renderer
 }
 
 // Deps defines dependencies of the SFC plugin.
@@ -64,6 +67,52 @@ type Deps struct {
 	GoVPP           govppmux.API
 	Stats           statscollector.API
 	ConfigRetriever controller.ConfigRetriever
+}
+
+func (p *Plugin) useL2xconnRenderer() {
+	p.l2xconnRenderer = &l2xconn.Renderer{
+		Deps: l2xconn.Deps{
+			Log:        p.Log.NewLogger("-sfcL2xconnRenderer"),
+			Config:     p.config,
+			ContivConf: p.ContivConf,
+			IPAM:       p.IPAM,
+			IPNet:      p.IPNet,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
+			},
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+			Stats: p.Stats,
+		},
+	}
+	// init & register the renderer
+	p.l2xconnRenderer.Init(false)
+	p.processor.RegisterRenderer(p.l2xconnRenderer)
+}
+
+func (p *Plugin) useSRv6Renderer() {
+	p.srv6Renderer = &srv6.Renderer{
+		Deps: srv6.Deps{
+			Log:        p.Log.NewLogger("-sfcSRv6Renderer"),
+			Config:     p.config,
+			ContivConf: p.ContivConf,
+			IPAM:       p.IPAM,
+			IPNet:      p.IPNet,
+			UpdateTxnFactory: func(change string) controller.UpdateOperations {
+				p.changes = append(p.changes, change)
+				return p.updateTxn
+			},
+			ResyncTxnFactory: func() controller.ResyncOperations {
+				return p.resyncTxn
+			},
+			Stats: p.Stats,
+		},
+	}
+	// init & register the renderer
+	p.srv6Renderer.Init(false)
+	p.processor.RegisterRenderer(p.srv6Renderer)
 }
 
 // Init initializes the SFC plugin and starts watching ETCD for K8s configuration.
@@ -94,27 +143,11 @@ func (p *Plugin) Init() error {
 		return err
 	}
 
-	// TODO: in case of multiple renederers, use the renderer based on the config
-	p.l2xconnRenderer = &l2xconn.Renderer{
-		Deps: l2xconn.Deps{
-			Log:        p.Log.NewLogger("-sfcL2xconnRenderer"),
-			Config:     p.config,
-			ContivConf: p.ContivConf,
-			IPAM:       p.IPAM,
-			IPNet:      p.IPNet,
-			UpdateTxnFactory: func(change string) controller.UpdateOperations {
-				p.changes = append(p.changes, change)
-				return p.updateTxn
-			},
-			ResyncTxnFactory: func() controller.ResyncOperations {
-				return p.resyncTxn
-			},
-			Stats: p.Stats,
-		},
+	if p.ContivConf.GetRoutingConfig().UseSRv6ForServiceFunctionChaining {
+		p.useSRv6Renderer()
+	} else {
+		p.useL2xconnRenderer()
 	}
-	// init & register the renderer
-	p.l2xconnRenderer.Init(false)
-	p.processor.RegisterRenderer(p.l2xconnRenderer)
 
 	return nil
 }
