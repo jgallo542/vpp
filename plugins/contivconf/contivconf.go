@@ -101,6 +101,8 @@ const (
 	// default node to node communication
 	defaultNodeToNodeTransport = VXLANTransport
 
+	defaultUseSRv6ForServiceFunctionChaining = false
+
 	// default VRF IDs
 	defaultMainVrfID = 0
 	defaultPodVrfID  = 1
@@ -293,9 +295,10 @@ func (c *ContivConf) Init() (err error) {
 			IPNeighborStaleThreshold: defaultIPNeighborStaleThreshold,
 		},
 		RoutingConfig: config.RoutingConfig{
-			MainVRFID:           defaultMainVrfID,
-			PodVRFID:            defaultPodVrfID,
-			NodeToNodeTransport: defaultNodeToNodeTransport,
+			MainVRFID:                         defaultMainVrfID,
+			PodVRFID:                          defaultPodVrfID,
+			NodeToNodeTransport:               defaultNodeToNodeTransport,
+			UseSRv6ForServiceFunctionChaining: defaultUseSRv6ForServiceFunctionChaining,
 		},
 		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,

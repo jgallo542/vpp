@@ -62,6 +62,7 @@ Parameter | Description | Default
 --------- | ----------- | -------
 `contiv.nodeToNodeTransport` | Transportation used for node-to-node communication | `vxlan`
 `contiv.useSRv6ForServices` | Enable usage of SRv6 for k8s service | `false`
+`contiv.useSRv6ForServiceFunctionChaining` | Enable use SRv6(IPv6) for Service Function Chaining in k8s service | `false`
 `contiv.mtuSize` | MTU Size | 1450
 `contiv.useTAPInterfaces` | Enable TAP interfaces | `True`
 `contiv.tapInterfaceVersion`| TAP interface version | 2

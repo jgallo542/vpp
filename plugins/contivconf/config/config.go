@@ -75,6 +75,9 @@ type RoutingConfig struct {
 	// part of route the "NodeToNodeTransport" setting. To communicate between nodes only using SRv6, set it to "srv6" (+ UseSRv6ForServices=true).
 	UseSRv6ForServices bool `json:"useSRv6ForServices,omitempty"`
 
+	// Enabled when Service Function Chaining for K8s service should be performed by using SRv6 (segment routing based on IPv6).
+	UseSRv6ForServiceFunctionChaining bool `json:"useSRv6ForServiceFunctionChaining,omitempty"`
+
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
 	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
 }
