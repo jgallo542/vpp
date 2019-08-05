@@ -20,9 +20,12 @@ import (
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
 	"github.com/contiv/vpp/plugins/podmanager"
+	"github.com/pkg/errors"
 )
 
 // Update is called for:
@@ -74,24 +77,39 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 		return strJoinIfNotEmpty(change, change2), err
 	}
 
-	// pod k8s data change
+	// k8s data change
 	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
-		if ksChange.Resource == podmodel.PodKeyword && ksChange.NewValue != nil {
-			pod := ksChange.NewValue.(*podmodel.Pod)
-			podID := podmodel.GetID(pod)
+		switch ksChange.Resource {
 
-			// if there is a pending addPodCustomIfs operation for this pod,
-			// and the pod already has an IP address assigned, process it now
-			if _, pending := n.pendingAddPodCustomIf[podID]; pending && pod.IpAddress != "" {
-				delete(n.pendingAddPodCustomIf, podID)
-				if hasContivCustomIfAnnotation(pod.Annotations) {
-					err = n.EventLoop.PushEvent(&PodCustomIfUpdate{
-						PodID:       podID,
-						Labels:      pod.Labels,
-						Annotations: pod.Annotations,
-					})
+		case podmodel.PodKeyword:
+			var change string
+			if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+				change, err = n.updateSrv6DX6NodeToNodeTunnel(ksChange, txn)
+				if err != nil {
+					return "", err
 				}
 			}
+
+			if err = n.pushPodCustomIfUpdateEventIfNeeded(ksChange); err != nil {
+				return "", err
+			}
+			return change, nil
+
+		case extifmodel.Keyword:
+			// external interface data change
+			var extIf *extifmodel.ExternalInterface
+			isAdd := false
+			if ksChange.NewValue != nil {
+				extIf = ksChange.NewValue.(*extifmodel.ExternalInterface)
+				isAdd = true
+			} else if ksChange.PrevValue != nil {
+				extIf = ksChange.PrevValue.(*extifmodel.ExternalInterface)
+			}
+			return n.updateExternalIf(extIf, txn, isAdd)
+
+		case customnetmodel.Keyword:
+			// custom network data change
+			// TODO: handle custom networks
 		}
 	}
 
@@ -111,6 +129,67 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 	}
 
 	return "", nil
+}
+
+// updateSrv6DX6NodeToNodeTunnel updates ingress part of SRv6 node-to-node tunnel that leads directly to remote pod (DX6 end function)
+func (n *IPNet) updateSrv6DX6NodeToNodeTunnel(ksChange *controller.KubeStateChange, txn controller.UpdateOperations) (change string, err error) {
+	// get pod with assigned IP address (for cases of just assigning or just removing IP address to/from pod)
+	var pod *podmodel.Pod
+	newPod, _ := ksChange.NewValue.(*podmodel.Pod)
+	prevPod, _ := ksChange.PrevValue.(*podmodel.Pod)
+	if n.isParsableIPAddressAdded(newPod, prevPod) { // just got assigned IP address
+		pod = ksChange.NewValue.(*podmodel.Pod)
+	}
+	if n.isParsableIPAddressAdded(prevPod, newPod) { // just got removed IP address
+		pod = ksChange.PrevValue.(*podmodel.Pod)
+	}
+	if pod == nil { // ignore other state changes
+		return "", nil
+	}
+
+	// adding ingress for tunnel to remote pods
+	if _, isLocal := n.PodManager.GetLocalPods()[podmodel.GetID(pod)]; !isLocal { // ingress of tunnel to remote pod -> ignoring updates of local pods
+		config, err := n.srv6NodeToNodeDX6PodTunnelIngress(pod)
+		if err != nil {
+			return "", errors.Wrapf(err, "can't add SRv6 node-to-node tunnel crossconnecting to pod %+v", podmodel.GetID(pod))
+		}
+		if n.isParsableIPAddressAdded(newPod, prevPod) { // addition of tunnel ingress
+			addToTxn(config, txn)
+			return "adding ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to remote pod)", nil
+		}
+		// removal of tunnel ingress
+		controller.DeleteAll(txn, config)
+		return "removing ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to remote pod)", nil
+	}
+	return "", nil
+}
+
+// isParsableIPAddressAdded checks whether parsable IP addresses was added to pod in new state
+func (n *IPNet) isParsableIPAddressAdded(podWithNewState *podmodel.Pod, podWithPrevState *podmodel.Pod) bool {
+	return podWithNewState != nil && net.ParseIP(podWithNewState.IpAddress) != nil &&
+		(podWithPrevState == nil || net.ParseIP(podWithPrevState.IpAddress) == nil)
+}
+
+// pushPodCustomIfUpdateEventIfNeeded pushes PodCustomIfUpdate event to event loop when pod KubeState changes in specific manner. Otherwise it does nothing
+func (n *IPNet) pushPodCustomIfUpdateEventIfNeeded(ksChange *controller.KubeStateChange) error {
+	if ksChange.NewValue != nil {
+		pod := ksChange.NewValue.(*podmodel.Pod)
+		podID := podmodel.GetID(pod)
+
+		// if there is a pending addPodCustomIfs operation for this pod,
+		// and the pod already has an IP address assigned, process it now
+		if _, pending := n.pendingAddPodCustomIf[podID]; pending && pod.IpAddress != "" {
+			delete(n.pendingAddPodCustomIf, podID)
+			if hasContivCustomIfAnnotation(pod.Annotations) {
+				return n.EventLoop.PushEvent(&PodCustomIfUpdate{
+					PodID:       podID,
+					Labels:      pod.Labels,
+					Annotations: pod.Annotations,
+				})
+			}
+		}
+	}
+	return nil
 }
 
 // Revert is called for AddPod.
@@ -226,7 +305,7 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 	return "un-configure IP connectivity", nil
 }
 
-// updatePodCustomIfs adds or deletes custom interfaces configuration (if requested by pod annotations).
+// updatePodCustomIfs adds or deletes pod custom interfaces configuration (if requested by pod annotations).
 func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations, eventType podConfigEventType) (change string, err error) {
 
 	pod := n.PodManager.GetLocalPods()[podID]
@@ -239,10 +318,31 @@ func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOpera
 
 	if eventType != podDelete {
 		controller.PutAll(txn, config)
-		return "configure custom interfaces", nil
+		return "configure custom pod interfaces", nil
 	}
 	controller.DeleteAll(txn, config)
-	return "un-configure custom interfaces", nil
+	return "un-configure custom pod interfaces", nil
+}
+
+// updateExternalIf adds or deletes external interface configuration.
+func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn controller.UpdateOperations, isAdd bool) (change string, err error) {
+
+	config, err := n.externalInterfaceConfig(extIf)
+	if err != nil {
+		return "", err
+	}
+
+	// no external interface config for this node
+	if len(config) == 0 {
+		return "", nil
+	}
+
+	if isAdd {
+		controller.PutAll(txn, config)
+		return "configure external interfaces", nil
+	}
+	controller.DeleteAll(txn, config)
+	return "un-configure external interfaces", nil
 }
 
 // processNodeUpdateEvent reacts to an update of *another* node.

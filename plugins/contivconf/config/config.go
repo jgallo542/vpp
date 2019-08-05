@@ -78,6 +78,10 @@ type RoutingConfig struct {
 	// Enabled when Service Function Chaining for K8s service should be performed by using SRv6 (segment routing based on IPv6).
 	UseSRv6ForServiceFunctionChaining bool `json:"useSRv6ForServiceFunctionChaining,omitempty"`
 
+	// Enables usage of DX6 end function instead of DT6 end function for node-to-node communication using SRV6. This is limited to
+	// pod-to-pod communication use case in full IPv6 environment (pods and node fabric is IPv6)
+	UseDX6ForSrv6NodetoNodeTransport bool `json:"useDX6ForSrv6NodetoNodeTransport,omitempty"`
+
 	// when enabled, cluster IP CIDR should be routed towards VPP from Linux
 	RouteServiceCIDRToVPP bool `json:"routeServiceCIDRToVPP,omitempty"`
 }

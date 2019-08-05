@@ -103,6 +103,9 @@ const (
 
 	defaultUseSRv6ForServiceFunctionChaining = false
 
+	// default usage of DX6 instead of DT6 for SRv6 node-to-node transport (only pod-to-pod communication in full IPv6 environment)
+	defaultUseDX6ForSrv6NodetoNodeTransport = false
+
 	// default VRF IDs
 	defaultMainVrfID = 0
 	defaultPodVrfID  = 1
@@ -299,6 +302,7 @@ func (c *ContivConf) Init() (err error) {
 			PodVRFID:                          defaultPodVrfID,
 			NodeToNodeTransport:               defaultNodeToNodeTransport,
 			UseSRv6ForServiceFunctionChaining: defaultUseSRv6ForServiceFunctionChaining,
+			UseDX6ForSrv6NodetoNodeTransport:  defaultUseDX6ForSrv6NodetoNodeTransport,
 		},
 		IPAMConfig: config.IPAMConfig{
 			ServiceCIDR:                   defaultServiceCIDR,
