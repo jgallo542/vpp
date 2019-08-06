@@ -94,9 +94,9 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
       - `nodeToNodeHostLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
       - `nodeToNodePodPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
       - `nodeToNodeHostPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
-      - `sfcPolicyBSIDSubnetCIDR`: subnet applied to lowest SFC IP to get unique binding sid for SRv6 policy
-      - `sfcServiceFunctionSIDSubnetCIDR`: subnet applied to SFC host pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using AD end function
-      - `sfcEndLocalSIDSubnetCIDR`: subnet applied to SFC local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using end function
+      - `sfcPolicyBSIDSubnetCIDR`: subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding sid for SRv6 policy used in SFC
+      - `sfcServiceFunctionSIDSubnetCIDR`: subnet applied to combination of SFC ID(trimmed hash of SFC name) and service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function
+      - `sfcEndLocalSIDSubnetCIDR`: subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain
 
       Default config values for SRv6 SID/BSID subnets follow these rules to gain more clarity in debugging/maintaining/adding new functionality(adding new sids/bsids):
        - 8fff::/16 = service policy
