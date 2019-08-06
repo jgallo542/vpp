@@ -105,9 +105,8 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
        - 9000::/16 = localsid with end function End
        - 9100::/16 = localsid with end function End.DX2 (crossconnect target could be found out from non-prefix part of SID (target interface leads to target pod/node and sid is created from IP of that pod/node))
        - 9200::/16 = localsid with end function End.DX4 (crossconnect target is known as in DX2 case)
-       - 9300::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case)
-       - 9310::/16 = sfc localsid with end function End.DX6 (crossconnect target is known as in DX2 case)
-       - 93\<YZ\>::/16 = localsid with end function End.DX6 (\<Y\> is id of type, Y = 0 - other, Y = 1 - sfc, \<Z\> is id of target ipv6 VRF table)
+       - 9300::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case), no SFC usage
+       - 9310::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case), SFC usage
        - 94\<YZ\>::/16 = localsid with end function End.DT4 (\<YZ\> is id of target ipv4 VRF table)
        - 95\<YZ\>::/16 = localsid with end function End.DT6 (\<YZ\> is id of target ipv6 VRF table)
        - 9600::/16 = localsid with end function End.AD (crossconnect target is known as in DX2 case)
