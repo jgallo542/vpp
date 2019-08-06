@@ -159,6 +159,10 @@ type SRv6Settings struct {
 	SFCServiceFunctionSIDSubnetCIDR *net.IPNet
 	// SFCEndLocalSIDSubnetCIDR is subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain
 	SFCEndLocalSIDSubnetCIDR *net.IPNet
+	// SFCIDLengthUsedInSidForServiceFunction is length(in bits) of SFC ID(trimmed hash of SFC name) that should be used by computing SFC ServiceFunction localsid SID.
+	// A hash is computed from SFC name, trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID (SID=prefix from
+	// sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod IP address).
+	SFCIDLengthUsedInSidForServiceFunction uint8
 }
 
 // CustomIPAMSubnets allows users to manually select individual subnets.

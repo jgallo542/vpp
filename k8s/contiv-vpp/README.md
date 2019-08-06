@@ -100,6 +100,7 @@ Parameter | Description | Default
 `contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR` | Subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding sid for SRv6 policy used in SFC | `8eee::/16`
 `contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR` | Subnet applied to combination of SFC ID(trimmed hash of SFC name) and service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function | `9600::/16`
 `contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR` | Subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain | `9310::/16`
+`contiv.ipamConfig.srv6.sfcIDLengthUsedInSidForServiceFunction` | Length(in bits) of SFC ID(trimmed hash of SFC name) that should be used by computing SFC ServiceFunction localsid SID. A hash is computed from SFC name, trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID (SID=prefix from sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod IP address). | `16`
 `contiv.nodeConfig.*` | List of node configs, see example section in values.yaml | `""`
 `contiv.vswitch.useSocketVPPConnection` | use unix domain socket for connection to VPP | `false`
 `contiv.vswitch.defineMemoryLimits` | define memory requests & limits for vswitch container | `true`

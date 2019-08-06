@@ -82,23 +82,24 @@ const (
 	defaultIPNeighborStaleThreshold = 4
 
 	// default IPAM configuration
-	defaultServiceCIDR                           = "10.96.0.0/12"
-	defaultPodSubnetCIDR                         = "10.1.0.0/16"
-	defaultPodSubnetOneNodePrefixLen             = 24
-	defaultVPPHostSubnetCIDR                     = "172.30.0.0/16"
-	defaultVPPHostSubnetOneNodePrefixLen         = 24
-	defaultVxlanCIDR                             = "192.168.30.0/24"
-	defaultSrv6ServicePolicyBSIDSubnetCIDR       = "8fff::/16"
-	defaultSrv6ServicePodLocalSIDSubnetCIDR      = "9300::/16"
-	defaultSrv6ServiceHostLocalSIDSubnetCIDR     = "9300::/16"
-	defaultSrv6ServiceNodeLocalSIDSubnetCIDR     = "9000::/16"
-	defaultSrv6NodeToNodePodLocalSIDSubnetCIDR   = "9501::/16"
-	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR  = "9500::/16"
-	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8501::/16"
-	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "8500::/16"
-	defaultSFCPolicyBSIDSubnetCIDR               = "8eee::/16"
-	defaultSFCServiceFunctionSIDSubnetCIDR       = "9600::/16"
-	defaultSFCEndLocalSIDSubnetCIDR              = "9310::/16"
+	defaultServiceCIDR                            = "10.96.0.0/12"
+	defaultPodSubnetCIDR                          = "10.1.0.0/16"
+	defaultPodSubnetOneNodePrefixLen              = 24
+	defaultVPPHostSubnetCIDR                      = "172.30.0.0/16"
+	defaultVPPHostSubnetOneNodePrefixLen          = 24
+	defaultVxlanCIDR                              = "192.168.30.0/24"
+	defaultSrv6ServicePolicyBSIDSubnetCIDR        = "8fff::/16"
+	defaultSrv6ServicePodLocalSIDSubnetCIDR       = "9300::/16"
+	defaultSrv6ServiceHostLocalSIDSubnetCIDR      = "9300::/16"
+	defaultSrv6ServiceNodeLocalSIDSubnetCIDR      = "9000::/16"
+	defaultSrv6NodeToNodePodLocalSIDSubnetCIDR    = "9501::/16"
+	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR   = "9500::/16"
+	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR   = "8501::/16"
+	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR  = "8500::/16"
+	defaultSFCPolicyBSIDSubnetCIDR                = "8eee::/16"
+	defaultSFCServiceFunctionSIDSubnetCIDR        = "9600::/16"
+	defaultSFCEndLocalSIDSubnetCIDR               = "9310::/16"
+	defaultSFCIDLengthUsedInSidForServiceFunction = 16
 	// NodeInterconnectCIDR & ContivCIDR can be empty
 
 	// default node to node communication
@@ -315,17 +316,18 @@ func (c *ContivConf) Init() (err error) {
 			VPPHostSubnetOneNodePrefixLen: defaultVPPHostSubnetOneNodePrefixLen,
 			VxlanCIDR:                     defaultVxlanCIDR,
 			SRv6: config.SRv6Config{
-				ServicePolicyBSIDSubnetCIDR:       defaultSrv6ServicePolicyBSIDSubnetCIDR,
-				ServicePodLocalSIDSubnetCIDR:      defaultSrv6ServicePodLocalSIDSubnetCIDR,
-				ServiceHostLocalSIDSubnetCIDR:     defaultSrv6ServiceHostLocalSIDSubnetCIDR,
-				ServiceNodeLocalSIDSubnetCIDR:     defaultSrv6ServiceNodeLocalSIDSubnetCIDR,
-				NodeToNodePodLocalSIDSubnetCIDR:   defaultSrv6NodeToNodePodLocalSIDSubnetCIDR,
-				NodeToNodeHostLocalSIDSubnetCIDR:  defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR,
-				NodeToNodePodPolicySIDSubnetCIDR:  defaultSrv6NodeToNodePodPolicySIDSubnetCIDR,
-				NodeToNodeHostPolicySIDSubnetCIDR: defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR,
-				SFCPolicyBSIDSubnetCIDR:           defaultSFCPolicyBSIDSubnetCIDR,
-				SFCServiceFunctionSIDSubnetCIDR:   defaultSFCServiceFunctionSIDSubnetCIDR,
-				SFCEndLocalSIDSubnetCIDR:          defaultSFCEndLocalSIDSubnetCIDR,
+				ServicePolicyBSIDSubnetCIDR:            defaultSrv6ServicePolicyBSIDSubnetCIDR,
+				ServicePodLocalSIDSubnetCIDR:           defaultSrv6ServicePodLocalSIDSubnetCIDR,
+				ServiceHostLocalSIDSubnetCIDR:          defaultSrv6ServiceHostLocalSIDSubnetCIDR,
+				ServiceNodeLocalSIDSubnetCIDR:          defaultSrv6ServiceNodeLocalSIDSubnetCIDR,
+				NodeToNodePodLocalSIDSubnetCIDR:        defaultSrv6NodeToNodePodLocalSIDSubnetCIDR,
+				NodeToNodeHostLocalSIDSubnetCIDR:       defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR,
+				NodeToNodePodPolicySIDSubnetCIDR:       defaultSrv6NodeToNodePodPolicySIDSubnetCIDR,
+				NodeToNodeHostPolicySIDSubnetCIDR:      defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR,
+				SFCPolicyBSIDSubnetCIDR:                defaultSFCPolicyBSIDSubnetCIDR,
+				SFCServiceFunctionSIDSubnetCIDR:        defaultSFCServiceFunctionSIDSubnetCIDR,
+				SFCEndLocalSIDSubnetCIDR:               defaultSFCEndLocalSIDSubnetCIDR,
+				SFCIDLengthUsedInSidForServiceFunction: defaultSFCIDLengthUsedInSidForServiceFunction,
 			},
 		},
 		NatExternalTraffic: defaultNatExternalTraffic,
@@ -358,7 +360,9 @@ func (c *ContivConf) Init() (err error) {
 			PodSubnetOneNodePrefixLen:     c.config.IPAMConfig.PodSubnetOneNodePrefixLen,
 			VPPHostSubnetOneNodePrefixLen: c.config.IPAMConfig.VPPHostSubnetOneNodePrefixLen,
 		},
-		SRv6Settings: SRv6Settings{},
+		SRv6Settings: SRv6Settings{
+			SFCIDLengthUsedInSidForServiceFunction: c.config.IPAMConfig.SRv6.SFCIDLengthUsedInSidForServiceFunction,
+		},
 	}
 	if c.config.IPAMConfig.ContivCIDR != "" {
 		_, c.ipamConfig.ContivCIDR, err = net.ParseCIDR(c.config.IPAMConfig.ContivCIDR)

@@ -97,6 +97,7 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
       - `sfcPolicyBSIDSubnetCIDR`: subnet applied to SFC ID(trimmed hash of SFC name) to get unique binding sid for SRv6 policy used in SFC
       - `sfcServiceFunctionSIDSubnetCIDR`: subnet applied to combination of SFC ID(trimmed hash of SFC name) and service function pod IP address to get unique sid for SRv6 Localsid referring to SFC service function
       - `sfcEndLocalSIDSubnetCIDR`: subnet applied to the IP address of last link of SFC to get unique sid for last localsid in the segment routing path representing SFC chain
+      - `sfcIDLengthUsedInSidForServiceFunction`: length(in bits) of SFC ID(trimmed hash of SFC name) that should be used by computing SFC ServiceFunction localsid SID. A hash is computed from SFC name, trimmed by length (this setting) and used in computation of SFC ServiceFunction localsid SID (SID=prefix from sfcServiceFunctionSIDSubnetCIDR + trimmed hash of SFC name + service function pod IP address).
 
       Default config values for SRv6 SID/BSID subnets follow these rules to gain more clarity in debugging/maintaining/adding new functionality(adding new sids/bsids):
        - 8fff::/16 = service policy
