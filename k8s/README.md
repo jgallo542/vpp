@@ -94,14 +94,20 @@ manually or using the [helm options](contiv-vpp/README.md#configuration):
       - `nodeToNodeHostLocalSIDSubnetCIDR`: subnet applied to node IP to get unique sid for SRv6 Localsid that is the only segment in node-to-node Srv6 tunnel. Traffic from tunnel continues routing by looking into main VRF table (DT6 end function of localsid)
       - `nodeToNodePodPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodePodLocalSIDSubnetCIDR`
       - `nodeToNodeHostPolicySIDSubnetCIDR`: subnet applied to node IP to get unique bsid for SRv6 policy that defines path in node-to-node Srv6 tunnel as mentioned in `srv6NodeToNodeHostLocalSIDSubnetCIDR`.
+      - `sfcPolicyBSIDSubnetCIDR`: subnet applied to lowest SFC IP to get unique binding sid for SRv6 policy
+      - `sfcServiceFunctionSIDSubnetCIDR`: subnet applied to SFC host pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using AD end function
+      - `sfcEndLocalSIDSubnetCIDR`: subnet applied to SFC local pod backend IP to get unique sid for SRv6 Localsid referring to local pod beckend using end function
 
       Default config values for SRv6 SID/BSID subnets follow these rules to gain more clarity in debugging/maintaining/adding new functionality(adding new sids/bsids):
        - 8fff::/16 = service policy
+       - 8eee::/16 = sfc policy
        - 8\<XYZ\>::/16 = policy for node-to-node communication ending in locasid with SID 9\<XYZ\>::/16
        - 9000::/16 = localsid with end function End
        - 9100::/16 = localsid with end function End.DX2 (crossconnect target could be found out from non-prefix part of SID (target interface leads to target pod/node and sid is created from IP of that pod/node))
        - 9200::/16 = localsid with end function End.DX4 (crossconnect target is known as in DX2 case)
        - 9300::/16 = localsid with end function End.DX6 (crossconnect target is known as in DX2 case)
+       - 9310::/16 = sfc localsid with end function End.DX6 (crossconnect target is known as in DX2 case)
+       - 93\<YZ\>::/16 = localsid with end function End.DX6 (\<Y\> is id of type, Y = 0 - other, Y = 1 - sfc, \<Z\> is id of target ipv6 VRF table)
        - 94\<YZ\>::/16 = localsid with end function End.DT4 (\<YZ\> is id of target ipv4 VRF table)
        - 95\<YZ\>::/16 = localsid with end function End.DT6 (\<YZ\> is id of target ipv6 VRF table)
        - 9600::/16 = localsid with end function End.AD (crossconnect target is known as in DX2 case)

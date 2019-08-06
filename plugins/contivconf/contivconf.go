@@ -96,6 +96,9 @@ const (
 	defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR  = "9500::/16"
 	defaultSrv6NodeToNodePodPolicySIDSubnetCIDR  = "8501::/16"
 	defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR = "8500::/16"
+	defaultSFCPolicyBSIDSubnetCIDR               = "8eee::/16"
+	defaultSFCServiceFunctionSIDSubnetCIDR       = "9600::/16"
+	defaultSFCEndLocalSIDSubnetCIDR              = "9310::/16"
 	// NodeInterconnectCIDR & ContivCIDR can be empty
 
 	// default node to node communication
@@ -320,6 +323,9 @@ func (c *ContivConf) Init() (err error) {
 				NodeToNodeHostLocalSIDSubnetCIDR:  defaultSrv6NodeToNodeHostLocalSIDSubnetCIDR,
 				NodeToNodePodPolicySIDSubnetCIDR:  defaultSrv6NodeToNodePodPolicySIDSubnetCIDR,
 				NodeToNodeHostPolicySIDSubnetCIDR: defaultSrv6NodeToNodeHostPolicySIDSubnetCIDR,
+				SFCPolicyBSIDSubnetCIDR:           defaultSFCPolicyBSIDSubnetCIDR,
+				SFCServiceFunctionSIDSubnetCIDR:   defaultSFCServiceFunctionSIDSubnetCIDR,
+				SFCEndLocalSIDSubnetCIDR:          defaultSFCEndLocalSIDSubnetCIDR,
 			},
 		},
 		NatExternalTraffic: defaultNatExternalTraffic,

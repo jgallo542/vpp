@@ -99,6 +99,9 @@ data:
         nodeToNodeHostLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostLocalSIDSubnetCIDR }}
         nodeToNodePodPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodePodPolicySIDSubnetCIDR }}
         nodeToNodeHostPolicySIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.nodeToNodeHostPolicySIDSubnetCIDR }}
+        sfcPolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR}}
+        sfcServiceFunctionSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR}}
+        sfcEndLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR}}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}

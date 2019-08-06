@@ -124,6 +124,9 @@ type SRv6Config struct {
 	NodeToNodeHostLocalSIDSubnetCIDR  string `json:"nodeToNodeHostLocalSIDSubnetCIDR,omitempty"`
 	NodeToNodePodPolicySIDSubnetCIDR  string `json:"nodeToNodePodPolicySIDSubnetCIDR,omitempty"`
 	NodeToNodeHostPolicySIDSubnetCIDR string `json:"nodeToNodeHostPolicySIDSubnetCIDR,omitempty"`
+	SFCPolicyBSIDSubnetCIDR           string `json:"sfcPolicyBSIDSubnetCIDR,omitempty"`
+	SFCServiceFunctionSIDSubnetCIDR   string `json:"sfcServiceFunctionSIDSubnetCIDR,omitempty"`
+	SFCEndLocalSIDSubnetCIDR          string `json:"sfcEndLocalSIDSubnetCIDR,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.
