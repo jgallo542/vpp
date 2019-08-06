@@ -420,6 +420,18 @@ func (c *ContivConf) Init() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to parse Srv6NodeToNodeHostPolicySIDSubnetCIDR: %v", err)
 	}
+	_, c.ipamConfig.SRv6Settings.SFCPolicyBSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.SFCPolicyBSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse SFCPolicyBSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.SFCServiceFunctionSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.SFCServiceFunctionSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse SFCServiceFunctionSIDSubnetCIDR: %v", err)
+	}
+	_, c.ipamConfig.SRv6Settings.SFCEndLocalSIDSubnetCIDR, err = net.ParseCIDR(c.config.IPAMConfig.SRv6.SFCEndLocalSIDSubnetCIDR)
+	if err != nil {
+		return fmt.Errorf("failed to parse SFCEndLocalSIDSubnetCIDR: %v", err)
+	}
 
 	if c.config.IPAMConfig.DefaultGateway != "" {
 		c.ipamConfig.DefaultGateway = net.ParseIP(c.config.IPAMConfig.DefaultGateway)
