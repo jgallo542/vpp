@@ -1039,12 +1039,14 @@ func (i *IPAM) computeSFCID(sfcName string) net.IP {
 
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>
 func (i *IPAM) computeSID(ip net.IP, prefixNetwork *net.IPNet) net.IP {
+	// prepare computation values
 	ip = ip.To16()
-	sid := net.IP(make([]byte, 16))
-	for i := range ip {
-		sid[i] = ip[i] & ^prefixNetwork.Mask[i] | prefixNetwork.IP[i]
-	}
-	return sid
+	prefixNetworkMaskSize, _ := prefixNetwork.Mask.Size()
+
+	// compute SID as combination of configurable prefix (PrefixNetwork) and IP address
+	return i.combineMultipleIPAddresses(
+		newIPWithPositionableMaskFromIPNet(prefixNetwork),
+		newIPWithPositionableMask(ip, prefixNetworkMaskSize, 128-prefixNetworkMaskSize))
 }
 
 // Close is NOOP.
