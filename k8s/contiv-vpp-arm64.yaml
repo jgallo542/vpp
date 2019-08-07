@@ -61,6 +61,7 @@ data:
         sfcPolicyBSIDSubnetCIDR: 8eee::/16
         sfcServiceFunctionSIDSubnetCIDR: 9600::/16
         sfcEndLocalSIDSubnetCIDR: 9310::/16
+        sfcIDLengthUsedInSidForServiceFunction: 16
   controller.conf: |
     enableRetry: true
     delayRetry: 1000000000

@@ -102,6 +102,7 @@ data:
         sfcPolicyBSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcPolicyBSIDSubnetCIDR}}
         sfcServiceFunctionSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcServiceFunctionSIDSubnetCIDR}}
         sfcEndLocalSIDSubnetCIDR: {{ .Values.contiv.ipamConfig.srv6.sfcEndLocalSIDSubnetCIDR}}
+        sfcIDLengthUsedInSidForServiceFunction: {{ .Values.contiv.ipamConfig.srv6.sfcIDLengthUsedInSidForServiceFunction}}
     {{- if .Values.contiv.nodeConfig }}
     nodeConfig:
     {{- range .Values.contiv.nodeConfig }}

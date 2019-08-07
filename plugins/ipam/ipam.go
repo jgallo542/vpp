@@ -19,14 +19,15 @@ package ipam
 import (
 	"bytes"
 	"fmt"
-	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/ligato/cn-infra/db/keyval"
 	"math/big"
 	"net"
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/contiv/vpp/plugins/ipam/ipalloc"
+	"github.com/contiv/vpp/plugins/ksr"
+	"github.com/ligato/cn-infra/db/keyval"
 
 	"github.com/apparentlymart/go-cidr/cidr"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
@@ -940,6 +941,22 @@ func (i *IPAM) BsidForNodeToNodePodPolicy(nodeIP net.IP) net.IP {
 // BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to main VRF table
 func (i *IPAM) BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP {
 	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR) // bsid = binding sid -> using the same util method
+}
+
+// BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
+func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
+	return nil // TODO implement
+}
+
+// SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
+// <serviceFunctionPodIP> IP address.
+func (i *IPAM) SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP {
+	return nil // TODO implement
+}
+
+// SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
+func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
+	return nil // TODO implement
 }
 
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>

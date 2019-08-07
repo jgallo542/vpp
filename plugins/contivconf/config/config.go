@@ -116,17 +116,18 @@ type IPAMConfig struct {
 
 // SRv6Config is part of IPAM configuration that configures SID prefixes of SRv6 components
 type SRv6Config struct {
-	ServicePolicyBSIDSubnetCIDR       string `json:"servicePolicyBSIDSubnetCIDR,omitempty"`
-	ServicePodLocalSIDSubnetCIDR      string `json:"servicePodLocalSIDSubnetCIDR,omitempty"`
-	ServiceHostLocalSIDSubnetCIDR     string `json:"serviceHostLocalSIDSubnetCIDR,omitempty"`
-	ServiceNodeLocalSIDSubnetCIDR     string `json:"serviceNodeLocalSIDSubnetCIDR,omitempty"`
-	NodeToNodePodLocalSIDSubnetCIDR   string `json:"nodeToNodePodLocalSIDSubnetCIDR,omitempty"`
-	NodeToNodeHostLocalSIDSubnetCIDR  string `json:"nodeToNodeHostLocalSIDSubnetCIDR,omitempty"`
-	NodeToNodePodPolicySIDSubnetCIDR  string `json:"nodeToNodePodPolicySIDSubnetCIDR,omitempty"`
-	NodeToNodeHostPolicySIDSubnetCIDR string `json:"nodeToNodeHostPolicySIDSubnetCIDR,omitempty"`
-	SFCPolicyBSIDSubnetCIDR           string `json:"sfcPolicyBSIDSubnetCIDR,omitempty"`
-	SFCServiceFunctionSIDSubnetCIDR   string `json:"sfcServiceFunctionSIDSubnetCIDR,omitempty"`
-	SFCEndLocalSIDSubnetCIDR          string `json:"sfcEndLocalSIDSubnetCIDR,omitempty"`
+	ServicePolicyBSIDSubnetCIDR            string `json:"servicePolicyBSIDSubnetCIDR,omitempty"`
+	ServicePodLocalSIDSubnetCIDR           string `json:"servicePodLocalSIDSubnetCIDR,omitempty"`
+	ServiceHostLocalSIDSubnetCIDR          string `json:"serviceHostLocalSIDSubnetCIDR,omitempty"`
+	ServiceNodeLocalSIDSubnetCIDR          string `json:"serviceNodeLocalSIDSubnetCIDR,omitempty"`
+	NodeToNodePodLocalSIDSubnetCIDR        string `json:"nodeToNodePodLocalSIDSubnetCIDR,omitempty"`
+	NodeToNodeHostLocalSIDSubnetCIDR       string `json:"nodeToNodeHostLocalSIDSubnetCIDR,omitempty"`
+	NodeToNodePodPolicySIDSubnetCIDR       string `json:"nodeToNodePodPolicySIDSubnetCIDR,omitempty"`
+	NodeToNodeHostPolicySIDSubnetCIDR      string `json:"nodeToNodeHostPolicySIDSubnetCIDR,omitempty"`
+	SFCPolicyBSIDSubnetCIDR                string `json:"sfcPolicyBSIDSubnetCIDR,omitempty"`
+	SFCServiceFunctionSIDSubnetCIDR        string `json:"sfcServiceFunctionSIDSubnetCIDR,omitempty"`
+	SFCEndLocalSIDSubnetCIDR               string `json:"sfcEndLocalSIDSubnetCIDR,omitempty"`
+	SFCIDLengthUsedInSidForServiceFunction uint8  `json:"sfcIDLengthUsedInSidForServiceFunction,omitempty"`
 }
 
 // NodeConfig represents configuration specific to a given node.
