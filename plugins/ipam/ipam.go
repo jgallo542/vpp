@@ -945,18 +945,18 @@ func (i *IPAM) BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP {
 
 // BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
 func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
-	return nil // TODO implement
+	return net.ParseIP("8eee::1")
 }
 
 // SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
 // <serviceFunctionPodIP> IP address.
 func (i *IPAM) SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP {
-	return nil // TODO implement
+	return net.ParseIP("9600::1")
 }
 
 // SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
 func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
-	return nil // TODO implement
+	return net.ParseIP("9310::1")
 }
 
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>

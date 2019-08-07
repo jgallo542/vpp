@@ -17,6 +17,12 @@ package srv6
 import (
 	"fmt"
 	"net"
+	"strings"
+
+	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
+
+	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
+	"github.com/ligato/vpp-agent/pkg/models"
 
 	"github.com/ligato/cn-infra/logging"
 
@@ -27,6 +33,13 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/config"
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
+)
+
+const (
+	ipv4HostPrefix   = "/32"
+	ipv6HostPrefix   = "/128"
+	ipv6PodSidPrefix = "/128"
+	ipv6AddrAny      = "::"
 )
 
 // Renderer implements SRv6 - SRv6 rendering of SFC in Contiv-VPP.
@@ -121,13 +134,151 @@ func (rndr *Renderer) Close() error {
 	return nil
 }
 
+//TODO: Add this functions to tools????
+// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
+func isIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return strings.Contains(ip.String(), ":")
+}
+
+func convertIPv4ToIPv6(ip net.IP) net.IP {
+	if ip == nil {
+		return nil
+	}
+
+	if isIPv6(ip) {
+		return ip
+	}
+
+	return ip.To16()
+}
+
+func getHostPrefix(ip net.IP) string {
+	if ip == nil {
+		return ""
+	}
+
+	if isIPv6(ip) {
+		return ipv6HostPrefix
+	}
+
+	return ipv4HostPrefix
+}
+
+func (rndr *Renderer) getTrafficPrefixAddress(sfc *renderer.ContivSFC) (podIP *net.IPNet) {
+	podIP = nil
+
+	for _, chain := range sfc.Chain {
+		for _, pod := range chain.Pods {
+			podIP = rndr.IPAM.GetPodIP(pod.ID)
+		}
+	}
+
+	return podIP
+}
+
 // renderChain renders Contiv SFC to VPP configuration.
 func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs) {
 	config = make(controller.KeyValuePairs)
 	//var prevSF *renderer.ServiceFunction
 
-	//TODO: Template
-	// Implement renderer
+	//todo
+	//rndr.Log.Warnf("Unable to get Steering trafix Address for chain %v", sfc)
+
+	rndr.Log.Debugf("[DEBUG]sfc: %v", sfc)
+
+	//rndr.IPAM.SidForSFCEndLocalsid()
+
+	bsid := rndr.IPAM.BsidForSFCPolicy(sfc.Name)
+	trafficAddress := rndr.getTrafficPrefixAddress(sfc)
+
+	steering := &vpp_srv6.Steering{
+		Name: "forK8sSFC-" + sfc.Network + "-" + sfc.Name,
+		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+			PolicyBsid: bsid.String(),
+		},
+		Traffic: &vpp_srv6.Steering_L3Traffic_{
+			L3Traffic: &vpp_srv6.Steering_L3Traffic{
+				PrefixAddress:     trafficAddress.String(),
+				InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
+			},
+		},
+	}
+
+	config[models.Key(steering)] = steering
+
+	// create Srv6 policy with segment list for each backend (loadbalancing and packet switching part)
+	// Ignore first and last podIP
+	// Fist podIP represent start (steering) function to SRv6
+	// Last podIP represent end function to SRv6
+	segmentLists := make([]*vpp_srv6.Policy_SegmentList, 0)
+	segments := make([]string, 0)
+	for id, chain := range sfc.Chain {
+		if id == 0 {
+			continue
+		}
+		for _, pod := range chain.Pods {
+			rndr.Log.Debugf("[DEBUG]i :%v Pods: %v", id, rndr.IPAM.GetPodIP(pod.ID))
+			podIP := rndr.IPAM.GetPodIP(pod.ID)
+			rndr.Log.Debugf("[DEBUG]podID: %v", podIP)
+			segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIP.IP).String())
+		}
+		segmentLists = append(segmentLists,
+			&vpp_srv6.Policy_SegmentList{
+				Weight:   1,
+				Segments: segments,
+			})
+	}
+
+	policy := &vpp_srv6.Policy{
+		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().MainVRFID,
+		Bsid:              bsid.String(),
+		SegmentLists:      segmentLists,
+		SprayBehaviour:    false, // loadbalance packets and not duplicate(spray) it to all segment lists
+		SrhEncapsulation:  true,
+	}
+	config[models.Key(policy)] = policy
+
+	ip := convertIPv4ToIPv6(trafficAddress.IP)
+	route := &vpp_l3.Route{
+		Type:        vpp_l3.Route_INTER_VRF,
+		DstNetwork:  rndr.IPAM.SidForServicePodLocalsid(ip).String() + ipv6PodSidPrefix,
+		VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
+		ViaVrfId:    rndr.ContivConf.GetRoutingConfig().PodVRFID,
+		NextHopAddr: ipv6AddrAny,
+	}
+	key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	config[key] = route
+
+	// getting more info about local backend
+	podID, found := rndr.IPAM.GetPodFromIP(trafficAddress.IP)
+	if !found {
+		rndr.Log.Warnf("Unable to get pod info for backend IP %v", trafficAddress.IP)
+		//TODO handle
+		//continue
+	}
+	vppIfName, _, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
+	if !exists {
+		rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
+		//TODO handle
+		//continue
+	}
+
+	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(trafficAddress.IP).String())
+	localSID := &vpp_srv6.LocalSID{
+		Sid:               rndr.IPAM.SidForSFCEndLocalsid(trafficAddress.IP).String(),
+		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
+			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+				NextHop:           trafficAddress.IP.String(),
+				OutgoingInterface: vppIfName,
+			},
+		},
+	}
+
+	config[models.Key(localSID)] = localSID
 
 	return config
 }
