@@ -18,6 +18,7 @@ package ipam
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"math/big"
 	"net"
@@ -945,28 +946,107 @@ func (i *IPAM) BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP {
 
 // BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
 func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
-	return net.ParseIP("8eee::1")
+	// prepare computation values
+	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCPolicyBSIDSubnetCIDR
+	prefixMaskSize, _ := prefix.Mask.Size()
+	sfcID := i.computeSFCID(sfcName)
+
+	// compute BSID as combination of configurable prefix and SFC ID
+	return i.combineMultipleIPAddresses(
+		newIPWithPositionableMaskFromIPNet(prefix),
+		newIPWithPositionableMask(sfcID, prefixMaskSize, 128-prefixMaskSize))
 }
 
 // SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
 // <serviceFunctionPodIP> IP address.
 func (i *IPAM) SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP {
-	return net.ParseIP("9600::1")
+	// prepare computation values
+	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCServiceFunctionSIDSubnetCIDR
+	prefixMaskSize, _ := prefix.Mask.Size()
+	sfcID := i.computeSFCID(sfcName)
+	sfcIDMaskLength := int(i.ContivConf.GetIPAMConfig().SRv6Settings.SFCIDLengthUsedInSidForServiceFunction)
+
+	// compute SID as combination of configurable prefix, SFC ID and IP address of service function pod
+	return i.combineMultipleIPAddresses(
+		newIPWithPositionableMaskFromIPNet(prefix),
+		newIPWithPositionableMask(sfcID, prefixMaskSize, sfcIDMaskLength),
+		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize+sfcIDMaskLength, 128-prefixMaskSize-sfcIDMaskLength))
 }
 
 // SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
 func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
-	return net.ParseIP("9310::1")
+	// prepare computation values
+	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
+	prefixMaskSize, _ := prefix.Mask.Size()
+
+	// compute SID as combination of configurable prefix and IP address of service function pod
+	return i.combineMultipleIPAddresses(
+		newIPWithPositionableMaskFromIPNet(prefix),
+		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize, 128-prefixMaskSize))
+}
+
+// ipWithPositionableMask holds IP address with positionable mask that defines what part of IP address should be used
+// in IP address combination functionality. The net.IPNet could not be used as it's mask start always on first bit of IP address.
+type ipWithPositionableMask struct {
+	ip               net.IP
+	positionableMask net.IPMask
+}
+
+// newIPWithPositionableMaskFromIPNet creates ipWithPositionableMask with IP and mask from given <ipNet> (mask is from start of IP address)
+func newIPWithPositionableMaskFromIPNet(ipNet *net.IPNet) *ipWithPositionableMask {
+	return &ipWithPositionableMask{
+		ip:               ipNet.IP,
+		positionableMask: ipNet.Mask,
+	}
+}
+
+// newIPWithPositionableMask creates ipWithPositionableMask with given IP address and mask that is zeroed except of one
+// sequence of ones starting at <maskStartBit>-th bit and having length <maskBitLength>
+func newIPWithPositionableMask(ip net.IP, maskStartBit int, maskBitLength int) *ipWithPositionableMask {
+	leftToMask := net.CIDRMask(maskStartBit, 128)
+	negatedRightToMask := net.CIDRMask(maskStartBit+maskBitLength, 128)
+	mask := net.CIDRMask(128, 128) // empty mask
+	for i := range mask {
+		mask[i] = ^(leftToMask[i] & ^negatedRightToMask[i])
+	}
+
+	return &ipWithPositionableMask{
+		ip:               ip,
+		positionableMask: mask,
+	}
+}
+
+// combineMultipleIPAddresses combines multiple addresses together into one IP address. The combining IP addresses have
+// additional information(positionableMask) that is saying what part of given combining IP address should be used in
+// combined IP address. It is expected that positionableMasks from all ipAddresses are not overlapping.
+func (i *IPAM) combineMultipleIPAddresses(ipAddresses ...*ipWithPositionableMask) net.IP {
+	result := net.IP(net.CIDRMask(128, 128))
+	for _, ipWithPositionableMask := range ipAddresses {
+		for i := range result {
+			result[i] = (result[i] & ^ipWithPositionableMask.positionableMask[i]) | // copy/paste parts that won't be changed by applying this ipWithPositionableMask
+				(ipWithPositionableMask.ip[i] & ipWithPositionableMask.positionableMask[i]) // apply part from this ipWithPositionableMask to result IP address
+		}
+	}
+	return result
+}
+
+// computeSFCID creates 128-bit SFC ID from SFC name
+func (i *IPAM) computeSFCID(sfcName string) net.IP {
+	h := sha256.New()
+	h.Write([]byte(sfcName))
+	return h.Sum(nil)[:16]
 }
 
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>
 func (i *IPAM) computeSID(ip net.IP, prefixNetwork *net.IPNet) net.IP {
+	// prepare computation values
 	ip = ip.To16()
-	sid := net.IP(make([]byte, 16))
-	for i := range ip {
-		sid[i] = ip[i] & ^prefixNetwork.Mask[i] | prefixNetwork.IP[i]
-	}
-	return sid
+	prefixNetworkMaskSize, _ := prefixNetwork.Mask.Size()
+
+	// compute SID as combination of configurable prefix (PrefixNetwork) and IP address
+	return i.combineMultipleIPAddresses(
+		newIPWithPositionableMaskFromIPNet(prefixNetwork),
+		newIPWithPositionableMask(ip, prefixNetworkMaskSize, 128-prefixNetworkMaskSize))
 }
 
 // Close is NOOP.
