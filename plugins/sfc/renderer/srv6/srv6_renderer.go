@@ -20,7 +20,6 @@ import (
 	"strings"
 
 	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
-
 	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
 	"github.com/ligato/vpp-agent/pkg/models"
 
@@ -192,17 +191,19 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	//rndr.IPAM.SidForSFCEndLocalsid()
 
 	bsid := rndr.IPAM.BsidForSFCPolicy(sfc.Name)
-	trafficAddress := rndr.getTrafficPrefixAddress(sfc)
+	chainEndAddress := rndr.getTrafficPrefixAddress(sfc)
 
 	steering := &vpp_srv6.Steering{
 		Name: "forK8sSFC-" + sfc.Network + "-" + sfc.Name,
 		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
 			PolicyBsid: bsid.String(),
 		},
-		Traffic: &vpp_srv6.Steering_L3Traffic_{
-			L3Traffic: &vpp_srv6.Steering_L3Traffic{
-				PrefixAddress:     trafficAddress.String(),
-				InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
+		Traffic: &vpp_srv6.Steering_L2Traffic_{
+			L2Traffic: &vpp_srv6.Steering_L2Traffic{
+				InterfaceName: sfc.Chain[0].Pods[0].OutputInterface,
+
+				//PrefixAddress:     chainEndAddress.String(),
+				//InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 			},
 		},
 	}
@@ -219,11 +220,16 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		if id == 0 {
 			continue
 		}
+
 		for _, pod := range chain.Pods {
-			rndr.Log.Debugf("[DEBUG]i :%v Pods: %v", id, rndr.IPAM.GetPodIP(pod.ID))
+			rndr.Log.Debugf("[DEBUG] id :%v, len chain: %v Pods: %v",
+				id, len(sfc.Chain), rndr.IPAM.GetPodIP(pod.ID))
 			podIP := rndr.IPAM.GetPodIP(pod.ID)
-			rndr.Log.Debugf("[DEBUG]podID: %v", podIP)
-			segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIP.IP).String())
+			if id == (len(sfc.Chain) - 1) {
+				segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(podIP.IP).String())
+			} else {
+				segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIP.IP).String())
+			}
 		}
 		segmentLists = append(segmentLists,
 			&vpp_srv6.Policy_SegmentList{
@@ -241,10 +247,10 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	}
 	config[models.Key(policy)] = policy
 
-	ip := convertIPv4ToIPv6(trafficAddress.IP)
+	ip := convertIPv4ToIPv6(chainEndAddress.IP)
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
-		DstNetwork:  rndr.IPAM.SidForServicePodLocalsid(ip).String() + ipv6PodSidPrefix,
+		DstNetwork:  rndr.IPAM.SidForSFCEndLocalsid(ip).String() + ipv6PodSidPrefix,
 		VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
 		ViaVrfId:    rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		NextHopAddr: ipv6AddrAny,
@@ -253,9 +259,9 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	config[key] = route
 
 	// getting more info about local backend
-	podID, found := rndr.IPAM.GetPodFromIP(trafficAddress.IP)
+	podID, found := rndr.IPAM.GetPodFromIP(chainEndAddress.IP)
 	if !found {
-		rndr.Log.Warnf("Unable to get pod info for backend IP %v", trafficAddress.IP)
+		rndr.Log.Warnf("Unable to get pod info for backend IP %v", chainEndAddress.IP)
 		//TODO handle
 		//continue
 	}
@@ -266,13 +272,13 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		//continue
 	}
 
-	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(trafficAddress.IP).String())
+	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP).String())
 	localSID := &vpp_srv6.LocalSID{
-		Sid:               rndr.IPAM.SidForSFCEndLocalsid(trafficAddress.IP).String(),
+		Sid:               rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
 			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           trafficAddress.IP.String(),
+				NextHop:           ipv6AddrAny,
 				OutgoingInterface: vppIfName,
 			},
 		},
