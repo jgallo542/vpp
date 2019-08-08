@@ -1007,7 +1007,7 @@ func newIPWithPositionableMask(ip net.IP, maskStartBit int, maskBitLength int) *
 	negatedRightToMask := net.CIDRMask(maskStartBit+maskBitLength, 128)
 	mask := net.CIDRMask(128, 128) // empty mask
 	for i := range mask {
-		mask[i] = ^(leftToMask[i] & ^negatedRightToMask[i])
+		mask[i] = ^(leftToMask[i] | ^negatedRightToMask[i])
 	}
 
 	return &ipWithPositionableMask{
