@@ -141,18 +141,17 @@ func (rndr *Renderer) Close() error {
 	return nil
 }
 
-func (rndr *Renderer) chainEndAddress(sfc *renderer.ContivSFC) (podIP *net.IPNet) {
-	podIP = nil
-
-	// FIXME rewrite to get IP address from end pod/interface only
-
-	for _, chain := range sfc.Chain {
-		for _, pod := range chain.Pods {
-			podIP = rndr.IPAM.GetPodIP(pod.ID)
+func (rndr *Renderer) chainEndAddress(sfc *renderer.ContivSFC) (podIP net.IP) {
+	chainEnd := sfc.Chain[len(sfc.Chain)-1]
+	for _, pod := range chainEnd.Pods {
+		podIPNet := rndr.IPAM.GetPodIP(pod.ID)
+		if podIPNet == nil || podIPNet.IP == nil {
+			continue
 		}
+		return podIPNet.IP
 	}
 
-	return podIP
+	return nil
 }
 
 // renderChain renders Contiv SFC to VPP configuration.
@@ -223,9 +222,12 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	config[models.Key(policy)] = policy
 
 	chainEndAddress := rndr.chainEndAddress(sfc)
+	if chainEndAddress == nil {
+		return config, errors.New("can't create sfc chain configuration due to no IP address assigned to end chain link")
+	}
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
-		DstNetwork:  rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP.To16()).String() + ipv6PodSidPrefix,
+		DstNetwork:  rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.To16()).String() + ipv6PodSidPrefix,
 		VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
 		ViaVrfId:    rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		NextHopAddr: ipv6AddrAny,
@@ -234,22 +236,22 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	config[key] = route
 
 	// getting more info about local backend
-	podID, found := rndr.IPAM.GetPodFromIP(chainEndAddress.IP)
+	podID, found := rndr.IPAM.GetPodFromIP(chainEndAddress)
 	if !found {
-		rndr.Log.Warnf("Unable to get pod info for backend IP %v", chainEndAddress.IP)
+		rndr.Log.Warnf("Unable to get pod info for backend IP %v", chainEndAddress)
 		//TODO handle
 		//continue
 	}
-	vppIfName, _, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
+	vppIfName, _, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name) // TODO use interface defined in sfc chain (make code robust and don't assume that interface in sfc chain is custom, it can be also default)
 	if !exists {
 		rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
 		//TODO handle
 		//continue
 	}
 
-	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP).String())
+	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress).String())
 	localSID := &vpp_srv6.LocalSID{
-		Sid:               rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP).String(),
+		Sid:               rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
 			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
