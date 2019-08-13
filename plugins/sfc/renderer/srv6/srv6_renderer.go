@@ -17,13 +17,6 @@ package srv6
 import (
 	"fmt"
 	"net"
-	"strings"
-
-	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
-	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
-	"github.com/ligato/vpp-agent/pkg/models"
-
-	"github.com/ligato/cn-infra/logging"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -32,6 +25,11 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/config"
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/ligato/cn-infra/logging"
+	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
+	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
+	"github.com/ligato/vpp-agent/pkg/models"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -44,10 +42,6 @@ const (
 // Renderer implements SRv6 - SRv6 rendering of SFC in Contiv-VPP.
 type Renderer struct {
 	Deps
-
-	/* FIXME: Rewrite me, only template */
-	defaultIfName string
-	defaultIfIP   net.IP
 }
 
 // Deps lists dependencies of the Renderer.
@@ -81,7 +75,10 @@ func (rndr *Renderer) AddChain(sfc *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("add SFC '%s'", sfc.Name))
 
-	config := rndr.renderChain(sfc)
+	config, err := rndr.renderChain(sfc)
+	if err != nil {
+		return errors.Wrapf(err, "can't add chain %v", sfc)
+	}
 	controller.PutAll(txn, config)
 
 	return nil
@@ -93,8 +90,14 @@ func (rndr *Renderer) UpdateChain(oldSFC, newSFC *renderer.ContivSFC) error {
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("update SFC '%s'", newSFC.Name))
 
-	oldConfig := rndr.renderChain(oldSFC)
-	newConfig := rndr.renderChain(newSFC)
+	oldConfig, err := rndr.renderChain(oldSFC)
+	if err != nil {
+		return errors.Wrapf(err, "can't remove old chain %v", oldSFC)
+	}
+	newConfig, err := rndr.renderChain(newSFC)
+	if err != nil {
+		return errors.Wrapf(err, "can't add new chain %v", newSFC)
+	}
 
 	controller.DeleteAll(txn, oldConfig)
 	controller.PutAll(txn, newConfig)
@@ -104,12 +107,14 @@ func (rndr *Renderer) UpdateChain(oldSFC, newSFC *renderer.ContivSFC) error {
 
 // DeleteChain is called for every removed service function chain.
 func (rndr *Renderer) DeleteChain(sfc *renderer.ContivSFC) error {
-
 	rndr.Log.Infof("Delete SFC: %v", sfc)
 
 	txn := rndr.UpdateTxnFactory(fmt.Sprintf("delete SFC chain '%s'", sfc.Name))
 
-	config := rndr.renderChain(sfc)
+	config, err := rndr.renderChain(sfc)
+	if err != nil {
+		return errors.Wrapf(err, "can't delete chain %v", sfc)
+	}
 	controller.DeleteAll(txn, config)
 
 	return nil
@@ -121,7 +126,10 @@ func (rndr *Renderer) Resync(resyncEv *renderer.ResyncEventData) error {
 
 	// resync SFC configuration
 	for _, sfc := range resyncEv.Chains {
-		config := rndr.renderChain(sfc)
+		config, err := rndr.renderChain(sfc)
+		if err != nil {
+			return errors.Wrapf(err, "can't resync chain %v", sfc)
+		}
 		controller.PutAll(txn, config)
 	}
 
@@ -133,148 +141,84 @@ func (rndr *Renderer) Close() error {
 	return nil
 }
 
-//TODO: Add this functions to tools????
-// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
-func isIPv6(ip net.IP) bool {
-	if ip == nil {
-		return false
-	}
-	return strings.Contains(ip.String(), ":")
-}
-
-func convertIPv4ToIPv6(ip net.IP) net.IP {
-	if ip == nil {
-		return nil
-	}
-
-	if isIPv6(ip) {
-		return ip
-	}
-
-	return ip.To16()
-}
-
-func getHostPrefix(ip net.IP) string {
-	if ip == nil {
-		return ""
-	}
-
-	if isIPv6(ip) {
-		return ipv6HostPrefix
-	}
-
-	return ipv4HostPrefix
-}
-
-func (rndr *Renderer) getTrafficPrefixAddress(sfc *renderer.ContivSFC) (podIP *net.IPNet) {
-	podIP = nil
-
-	for _, chain := range sfc.Chain {
-		for _, pod := range chain.Pods {
-			podIP = rndr.IPAM.GetPodIP(pod.ID)
+func (rndr *Renderer) firstPodIPAddress(link *renderer.ServiceFunction) (podIP net.IP) {
+	for _, pod := range link.Pods {
+		podIPNet := rndr.IPAM.GetPodIP(pod.ID)
+		if podIPNet == nil || podIPNet.IP == nil {
+			continue
 		}
+		return podIPNet.IP
 	}
 
-	return podIP
+	return nil
 }
 
 // renderChain renders Contiv SFC to VPP configuration.
-func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs) {
-	config = make(controller.KeyValuePairs)
-	//var prevSF *renderer.ServiceFunction
-
-	//todo
-	//rndr.Log.Warnf("Unable to get Steering trafix Address for chain %v", sfc)
-
+func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs, err error) {
+	// TODO support external interaces accros whole renderer
+	// TODO support SFC accross multiple nodes
+	// TODO remove all debug logging later
 	rndr.Log.Debugf("[DEBUG]sfc: %v", sfc)
 
-	//rndr.IPAM.SidForSFCEndLocalsid()
-
-	bsid := rndr.IPAM.BsidForSFCPolicy(sfc.Name)
-	chainEndAddress := rndr.getTrafficPrefixAddress(sfc)
-
-	steering := &vpp_srv6.Steering{
-		Name: "forK8sSFC-" + sfc.Network + "-" + sfc.Name,
-		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
-			PolicyBsid: bsid.String(),
-		},
-		Traffic: &vpp_srv6.Steering_L2Traffic_{
-			L2Traffic: &vpp_srv6.Steering_L2Traffic{
-				InterfaceName: sfc.Chain[0].Pods[0].OutputInterface,
-
-				//PrefixAddress:     chainEndAddress.String(),
-				//InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
-			},
-		},
+	config = make(controller.KeyValuePairs)
+	if sfc == nil {
+		return config, errors.New("can't create sfc chain configuration due to missing sfc information")
+	}
+	if sfc.Chain == nil || len(sfc.Chain) == 0 {
+		return config, errors.New("can't create sfc chain configuration due to missing chain information")
+	}
+	if len(sfc.Chain) < 2 {
+		return config, errors.New("can't create sfc chain configuration due to missing information on start and end chain links (chain has less than 2 links)")
+	}
+	if len(sfc.Chain) == 2 {
+		rndr.Log.Warnf("sfc chain %v doesn't have inner links, it has only start and end links", sfc.Name)
 	}
 
-	config[models.Key(steering)] = steering
+	startLink := sfc.Chain[0]
+	endLink := sfc.Chain[len(sfc.Chain)-1]
 
-	// create Srv6 policy with segment list for each backend (loadbalancing and packet switching part)
-	// Ignore first and last podIP
-	// Fist podIP represent start (steering) function to SRv6
-	// Last podIP represent end function to SRv6
-	segmentLists := make([]*vpp_srv6.Policy_SegmentList, 0)
-	segments := make([]string, 0)
-	for id, chain := range sfc.Chain {
-		if id == 0 {
-			continue
-		}
-
-		for _, pod := range chain.Pods {
-			rndr.Log.Debugf("[DEBUG] id :%v, len chain: %v Pods: %v",
-				id, len(sfc.Chain), rndr.IPAM.GetPodIP(pod.ID))
-			podIP := rndr.IPAM.GetPodIP(pod.ID)
-			if id == (len(sfc.Chain) - 1) {
-				segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(podIP.IP).String())
-			} else {
-				segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIP.IP).String())
-			}
-		}
-		segmentLists = append(segmentLists,
-			&vpp_srv6.Policy_SegmentList{
-				Weight:   1,
-				Segments: segments,
-			})
+	localStartPods := rndr.localPods(startLink)
+	if len(localStartPods) > 1 { // no local start pods = no steering to SFC (-> also no policy)
+		bsid := rndr.IPAM.BsidForSFCPolicy(sfc.Name)
+		rndr.createSteerings(localStartPods, sfc, bsid, config)
+		rndr.createPolicy(sfc, endLink, bsid, config)
 	}
 
-	policy := &vpp_srv6.Policy{
-		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().MainVRFID,
-		Bsid:              bsid.String(),
-		SegmentLists:      segmentLists,
-		SprayBehaviour:    false, // loadbalance packets and not duplicate(spray) it to all segment lists
-		SrhEncapsulation:  true,
+	endLinkAddress := rndr.firstPodIPAddress(endLink)
+	if endLinkAddress == nil {
+		return config, errors.New("can't create sfc chain configuration due to no IP address assigned to end chain link")
 	}
-	config[models.Key(policy)] = policy
+	// TODO create inner links (with multinode setup in mind)
+	rndr.createInnelLinkLocalsids(config)
+	// TODO create end link only if it is local
+	rndr.createRouteToPodVrf(endLinkAddress, config)
+	rndr.createEndLinkLocalsid(endLinkAddress, config)
 
-	ip := convertIPv4ToIPv6(chainEndAddress.IP)
-	route := &vpp_l3.Route{
-		Type:        vpp_l3.Route_INTER_VRF,
-		DstNetwork:  rndr.IPAM.SidForSFCEndLocalsid(ip).String() + ipv6PodSidPrefix,
-		VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
-		ViaVrfId:    rndr.ContivConf.GetRoutingConfig().PodVRFID,
-		NextHopAddr: ipv6AddrAny,
-	}
-	key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-	config[key] = route
+	return config, nil
+}
 
+func (rndr *Renderer) createInnelLinkLocalsids(config controller.KeyValuePairs) {
+	// TODO implement
+}
+
+func (rndr *Renderer) createEndLinkLocalsid(endLinkAddress net.IP, config controller.KeyValuePairs) {
 	// getting more info about local backend
-	podID, found := rndr.IPAM.GetPodFromIP(chainEndAddress.IP)
+	podID, found := rndr.IPAM.GetPodFromIP(endLinkAddress)
 	if !found {
-		rndr.Log.Warnf("Unable to get pod info for backend IP %v", chainEndAddress.IP)
+		rndr.Log.Warnf("Unable to get pod info for backend IP %v", endLinkAddress)
 		//TODO handle
 		//continue
 	}
 	vppIfName, _, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
+	// TODO use interface defined in sfc chain (make code robust and don't assume that interface in sfc chain is custom, it can be also default)
 	if !exists {
 		rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
 		//TODO handle
 		//continue
 	}
-
-	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP).String())
+	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String())
 	localSID := &vpp_srv6.LocalSID{
-		Sid:               rndr.IPAM.SidForSFCEndLocalsid(chainEndAddress.IP).String(),
+		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
 			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
@@ -283,31 +227,77 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 			},
 		},
 	}
-
 	config[models.Key(localSID)] = localSID
-
-	return config
 }
 
-func (rndr *Renderer) getSFInterface(sf *renderer.ServiceFunction, input bool) string {
-	if sf.Type != renderer.Pod {
-		return "" // TODO: implement external interfaces as well
+func (rndr *Renderer) createRouteToPodVrf(endLinkAddress net.IP, config controller.KeyValuePairs) {
+	route := &vpp_l3.Route{
+		Type:        vpp_l3.Route_INTER_VRF,
+		DstNetwork:  rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress.To16()).String() + ipv6PodSidPrefix,
+		VrfId:       rndr.ContivConf.GetRoutingConfig().MainVRFID,
+		ViaVrfId:    rndr.ContivConf.GetRoutingConfig().PodVRFID,
+		NextHopAddr: ipv6AddrAny,
 	}
-	if len(sf.Pods) == 0 {
-		return ""
-	}
-	pod := sf.Pods[0] // TODO: handle chains with multiple pod instances per service function?
+	key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
+	config[key] = route
+}
 
-	podInterface := ""
-	if input {
-		podInterface = pod.InputInterface
-	} else {
-		podInterface = pod.OutputInterface
+func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, endLink *renderer.ServiceFunction, bsid net.IP, config controller.KeyValuePairs) {
+	// create Srv6 policy with segment list for each backend (loadbalancing and packet switching part)
+	// Fist podIP represent start (steering) function to SRv6
+	// Last podIP represent end function to SRv6
+	segments := make([]string, 0)
+	// add segments for inner links of chain
+	for _, chain := range sfc.Chain[1 : len(sfc.Chain)-1] {
+		pod := chain.Pods[0] // TODO support multiple pods in inner chain link (multiple loadbalance routes or semething...)
+		podIP := rndr.IPAM.GetPodIP(pod.ID)
+		segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIP.IP).String())
 	}
+	// add segment for end link of chain
+	podIP := rndr.IPAM.GetPodIP(endLink.Pods[0].ID)
+	// TODO support multiple pods in end chain link
+	segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(podIP.IP).String())
+	// combine sergments to segment lists
+	segmentLists := make([]*vpp_srv6.Policy_SegmentList, 0)
+	segmentLists = append(segmentLists,
+		&vpp_srv6.Policy_SegmentList{
+			Weight:   1,
+			Segments: segments,
+		})
+	// create policy
+	policy := &vpp_srv6.Policy{
+		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().MainVRFID,
+		Bsid:              bsid.String(),
+		SegmentLists:      segmentLists,
+		SprayBehaviour:    false, // loadbalance packets and not duplicate(spray) it to all segment lists
+		SrhEncapsulation:  true,
+	}
+	config[models.Key(policy)] = policy
+}
 
-	vppIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, podInterface)
-	if !exists {
-		return ""
+func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP, config controller.KeyValuePairs) {
+	for _, startPod := range localStartPods {
+		steering := &vpp_srv6.Steering{
+			Name: fmt.Sprintf("forK8sSFC-%s-from-pod-%s", sfc.Name, startPod.ID.String()),
+			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+				PolicyBsid: bsid.String(),
+			},
+			Traffic: &vpp_srv6.Steering_L2Traffic_{
+				L2Traffic: &vpp_srv6.Steering_L2Traffic{
+					InterfaceName: startPod.OutputInterface,
+				},
+			},
+		}
+		config[models.Key(steering)] = steering
 	}
-	return vppIfName
+}
+
+func (rndr *Renderer) localPods(sf *renderer.ServiceFunction) []*renderer.PodSF {
+	localPods := make([]*renderer.PodSF, 0)
+	for _, pod := range sf.Pods {
+		if pod.Local {
+			localPods = append(localPods, pod)
+		}
+	}
+	return localPods
 }
