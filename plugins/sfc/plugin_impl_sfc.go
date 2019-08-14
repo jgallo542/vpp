@@ -112,7 +112,7 @@ func (p *Plugin) useSRv6Renderer() {
 		},
 	}
 	// init & register the renderer
-	p.srv6Renderer.Init(false)
+	p.srv6Renderer.Init()
 	p.processor.RegisterRenderer(p.srv6Renderer)
 }
 
