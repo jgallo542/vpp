@@ -194,7 +194,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()), config)
 					packetLocation = podVRFLocation
 				}
-				rndr.createEndLinkLocalsid(podIPNet.IP.To16(), config)
+				rndr.createEndLinkLocalsid(podIPNet.IP.To16(), config, pod.InputInterface)
 			} else { // inner link
 				if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()), config)
@@ -232,29 +232,21 @@ func (rndr *Renderer) createInnelLinkLocalsids(sfcName string, pod *renderer.Pod
 	config[models.Key(localSID)] = localSID
 }
 
-func (rndr *Renderer) createEndLinkLocalsid(endLinkAddress net.IP, config controller.KeyValuePairs) {
-	// getting more info about local backend
-	podID, found := rndr.IPAM.GetPodFromIP(endLinkAddress)
-	if !found {
-		rndr.Log.Warnf("Unable to get pod info for backend IP %v", endLinkAddress)
-		//TODO handle
-		//continue
-	}
-	vppIfName, _, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
-	// TODO use interface defined in sfc chain (make code robust and don't assume that interface in sfc chain is custom, it can be also default)
-	if !exists {
-		rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
-		//TODO handle
-		//continue
-	}
+func (rndr *Renderer) createEndLinkLocalsid(endLinkAddress net.IP, config controller.KeyValuePairs, outputIfName string) {
 	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String())
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           ipv6AddrAny,
-				OutgoingInterface: vppIfName,
+		//TODO Implement support for different type of dx
+		//EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
+		//	EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+		//		NextHop:           ipv6AddrAny,
+		//		OutgoingInterface: vppIfName,
+		//	},
+		//},
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX2{
+			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
+				OutgoingInterface: outputIfName,
 			},
 		},
 	}
