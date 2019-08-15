@@ -296,9 +296,9 @@ func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNod
 			lastSegmentNode = pod.NodeID
 		}
 		if i == len(sfc.Chain)-2 { // end link
-			segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP).String())
+			segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()).String())
 		} else { // inner link
-			segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP).String())
+			segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()).String())
 		}
 	}
 
