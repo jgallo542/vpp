@@ -238,17 +238,17 @@ func (rndr *Renderer) createEndLinkLocalsid(endLinkAddress net.IP, config contro
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		//TODO Implement support for different type of dx
-		//EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
-		//	EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-		//		NextHop:           ipv6AddrAny,
-		//		OutgoingInterface: vppIfName,
-		//	},
-		//},
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX2{
-			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
+			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+				NextHop:           "2001:0:0:1::7",
 				OutgoingInterface: outputIfName,
 			},
 		},
+		//EndFunction: &vpp_srv6.LocalSID_EndFunction_DX2{
+		//	EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
+		//		OutgoingInterface: outputIfName,
+		//	},
+		//},
 	}
 	config[models.Key(localSID)] = localSID
 }
@@ -329,9 +329,15 @@ func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *ren
 			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
 				PolicyBsid: bsid.String(),
 			},
-			Traffic: &vpp_srv6.Steering_L2Traffic_{
-				L2Traffic: &vpp_srv6.Steering_L2Traffic{
-					InterfaceName: startPod.OutputInterface,
+			//Traffic: &vpp_srv6.Steering_L2Traffic_{
+			//	L2Traffic: &vpp_srv6.Steering_L2Traffic{
+			//		InterfaceName: startPod.OutputInterface,
+			//	},
+			//},
+			Traffic: &vpp_srv6.Steering_L3Traffic_{
+				L3Traffic: &vpp_srv6.Steering_L3Traffic{
+					PrefixAddress:     "2001:0:0:1::7/128",
+					InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 				},
 			},
 		}
