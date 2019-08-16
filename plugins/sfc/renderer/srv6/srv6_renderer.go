@@ -200,7 +200,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()), config)
 					packetLocation = podVRFLocation
 				}
-				rndr.createInnelLinkLocalsids(sfc.Name, pod, podIPNet.IP.To16(), config)
+				rndr.createInnerLinkLocalsids(sfc.Name, pod, podIPNet.IP.To16(), config)
 			}
 		} else {
 			if packetLocation == podVRFLocation {
@@ -220,7 +220,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	return config, nil
 }
 
-func (rndr *Renderer) createInnelLinkLocalsids(sfcName string, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) {
+func (rndr *Renderer) createInnerLinkLocalsids(sfcName string, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfcName, servicePodIP).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
@@ -275,7 +275,7 @@ func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steered
 
 func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNodeID uint32, config controller.KeyValuePairs) error {
 	// create Srv6 policy with segment list for each backend (loadbalancing and packet switching part)
-	// Fist podIP represent start (steering) function to SRv6
+	// First podIP represent start (steering) function to SRv6
 	// Last podIP represent end function to SRv6
 	segments := make([]string, 0)
 	lastSegmentNode := thisNodeID
