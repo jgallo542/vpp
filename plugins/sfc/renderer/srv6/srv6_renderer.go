@@ -225,6 +225,7 @@ func (rndr *Renderer) createInnelLinkLocalsids(sfcName string, pod *renderer.Pod
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfcName, servicePodIP).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
+			L3ServiceAddress:  "2001:0:0:1::7",     //"bd:1::d",
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
 			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
 		}},
@@ -323,26 +324,41 @@ func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNod
 }
 
 func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP, config controller.KeyValuePairs) {
-	for _, startPod := range localStartPods {
-		steering := &vpp_srv6.Steering{
-			Name: fmt.Sprintf("forK8sSFC-%s-from-pod-%s", sfc.Name, startPod.ID.String()),
-			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
-				PolicyBsid: bsid.String(),
+	//for _, startPod := range localStartPods {
+	//	steering := &vpp_srv6.Steering{
+	//		Name: fmt.Sprintf("forK8sSFC-%s-from-pod-%s", sfc.Name, startPod.ID.String()),
+	//		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+	//			PolicyBsid: bsid.String(),
+	//		},
+	//		Traffic: &vpp_srv6.Steering_L2Traffic_{
+	//			L2Traffic: &vpp_srv6.Steering_L2Traffic{
+	//				InterfaceName: startPod.OutputInterface,
+	//			},
+	//		},
+	//	}
+	//	config[models.Key(steering)] = steering
+	//}
+
+	// TODO try computation when using default network (in pod creation yaml)
+	//endLinkPod := sfc.Chain[len(sfc.Chain)-1].Pods[0]
+	//rndr.Log.Debugf("[DEBUG] steering: end pod custom if = %v or %v", endLinkPod.InputInterface, endLinkPod.OutputInterface)
+	//rndr.Log.Debugf("[DEBUG] steering: end pod custom if IP = %v or %v", rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterface, sfc.Network),
+	//	rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.OutputInterface, sfc.Network))
+	//endLinkCustomIfIPNet := rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterface, sfc.Network)
+
+	steering := &vpp_srv6.Steering{
+		Name: fmt.Sprintf("forK8sSFC-%s", sfc.Name),
+		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
+			PolicyBsid: bsid.String(),
+		},
+		Traffic: &vpp_srv6.Steering_L3Traffic_{
+			L3Traffic: &vpp_srv6.Steering_L3Traffic{
+				InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
+				PrefixAddress:     "2001:0:0:1::7/128", //endLinkCustomIfIPNet.IP.String() + getHostPrefix(endLinkCustomIfIPNet.IP),
 			},
-			//Traffic: &vpp_srv6.Steering_L2Traffic_{
-			//	L2Traffic: &vpp_srv6.Steering_L2Traffic{
-			//		InterfaceName: startPod.OutputInterface,
-			//	},
-			//},
-			Traffic: &vpp_srv6.Steering_L3Traffic_{
-				L3Traffic: &vpp_srv6.Steering_L3Traffic{
-					PrefixAddress:     "2001:0:0:1::7/128",
-					InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
-				},
-			},
-		}
-		config[models.Key(steering)] = steering
+		},
 	}
+	config[models.Key(steering)] = steering
 }
 
 func (rndr *Renderer) localPods(sf *renderer.ServiceFunction) []*renderer.PodSF {
