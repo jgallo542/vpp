@@ -169,12 +169,15 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		rndr.Log.Warnf("sfc chain %v doesn't have inner links, it has only start and end links", sfc.Name)
 	}
 
+	endLinkPod := sfc.Chain[len(sfc.Chain)-1].Pods[0]
+	endLinkCustomIfIPNet := rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterfaceConfigName, sfc.Network)
+
 	// creating steering and policy (we will install SRv6 components in the same order as packet will go through SFC chain)
 	packetLocation := remoteLocation // tracking packet location to create correct configuration that enables correct packet routing
 	localStartPods := rndr.localPods(sfc.Chain[0])
 	if len(localStartPods) > 0 { // no local start pods = no steering to SFC (-> also no policy)
 		bsid := rndr.IPAM.BsidForSFCPolicy(sfc.Name)
-		rndr.createSteerings(localStartPods, sfc, bsid, config)
+		rndr.createSteerings(localStartPods, sfc, bsid, config, endLinkCustomIfIPNet)
 		if err := rndr.createPolicy(sfc, bsid, localStartPods[0].NodeID, config); err != nil {
 			return config, errors.Wrapf(err, "can't create SRv6 policy for SFC chain with name %v", sfc.Name)
 		}
@@ -194,13 +197,13 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()), config)
 					packetLocation = podVRFLocation
 				}
-				rndr.createEndLinkLocalsid(podIPNet.IP.To16(), config, pod.InputInterface)
+				rndr.createEndLinkLocalsid(podIPNet.IP.To16(), config, pod, endLinkCustomIfIPNet)
 			} else { // inner link
 				if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()), config)
 					packetLocation = podVRFLocation
 				}
-				rndr.createInnerLinkLocalsids(sfc.Name, pod, podIPNet.IP.To16(), config)
+				rndr.createInnerLinkLocalsids(sfc.Name, pod, podIPNet.IP.To16(), config, endLinkCustomIfIPNet)
 			}
 		} else {
 			if packetLocation == podVRFLocation {
@@ -220,12 +223,12 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	return config, nil
 }
 
-func (rndr *Renderer) createInnerLinkLocalsids(sfcName string, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) {
+func (rndr *Renderer) createInnerLinkLocalsids(sfcName string, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs, endIP *net.IPNet) {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfcName, servicePodIP).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
-			L3ServiceAddress:  "2001:0:0:1::7",     //"bd:1::d",
+			L3ServiceAddress:  endIP.String(),      //"bd:1::d",
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
 			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
 		}},
@@ -233,16 +236,15 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfcName string, pod *renderer.Pod
 	config[models.Key(localSID)] = localSID
 }
 
-func (rndr *Renderer) createEndLinkLocalsid(endLinkAddress net.IP, config controller.KeyValuePairs, outputIfName string) {
-	rndr.Log.Debugf("[DEBUG] Localsid: %v", rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String())
+func (rndr *Renderer) createEndLinkLocalsid(endLinkAddress net.IP, config controller.KeyValuePairs, pod *renderer.PodSF, endIP *net.IPNet) {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
 		//TODO Implement support for different type of dx
 		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
 			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           "2001:0:0:1::7",
-				OutgoingInterface: outputIfName,
+				NextHop:           endIP.IP.String(),
+				OutgoingInterface: pod.InputInterface,
 			},
 		},
 		//EndFunction: &vpp_srv6.LocalSID_EndFunction_DX2{
@@ -323,7 +325,7 @@ func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNod
 	return nil
 }
 
-func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP, config controller.KeyValuePairs) {
+func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP, config controller.KeyValuePairs, endIP *net.IPNet) {
 	//for _, startPod := range localStartPods {
 	//	steering := &vpp_srv6.Steering{
 	//		Name: fmt.Sprintf("forK8sSFC-%s-from-pod-%s", sfc.Name, startPod.ID.String()),
@@ -339,13 +341,6 @@ func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *ren
 	//	config[models.Key(steering)] = steering
 	//}
 
-	// TODO try computation when using default network (in pod creation yaml)
-	//endLinkPod := sfc.Chain[len(sfc.Chain)-1].Pods[0]
-	//rndr.Log.Debugf("[DEBUG] steering: end pod custom if = %v or %v", endLinkPod.InputInterface, endLinkPod.OutputInterface)
-	//rndr.Log.Debugf("[DEBUG] steering: end pod custom if IP = %v or %v", rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterface, sfc.Network),
-	//	rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.OutputInterface, sfc.Network))
-	//endLinkCustomIfIPNet := rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterface, sfc.Network)
-
 	steering := &vpp_srv6.Steering{
 		Name: fmt.Sprintf("forK8sSFC-%s", sfc.Name),
 		PolicyRef: &vpp_srv6.Steering_PolicyBsid{
@@ -354,7 +349,7 @@ func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *ren
 		Traffic: &vpp_srv6.Steering_L3Traffic_{
 			L3Traffic: &vpp_srv6.Steering_L3Traffic{
 				InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
-				PrefixAddress:     "2001:0:0:1::7/128", //endLinkCustomIfIPNet.IP.String() + getHostPrefix(endLinkCustomIfIPNet.IP),
+				PrefixAddress:     endIP.String(),
 			},
 		},
 	}
