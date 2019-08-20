@@ -17,13 +17,6 @@ package sfc
 import (
 	"strings"
 
-	"github.com/contiv/vpp/plugins/sfc/renderer/srv6"
-
-	"github.com/contiv/vpp/plugins/statscollector"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/servicelabel"
-	"github.com/ligato/vpp-agent/plugins/govppmux"
-
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
@@ -36,6 +29,11 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/config"
 	"github.com/contiv/vpp/plugins/sfc/processor"
 	"github.com/contiv/vpp/plugins/sfc/renderer/l2xconn"
+	"github.com/contiv/vpp/plugins/sfc/renderer/srv6"
+	"github.com/contiv/vpp/plugins/statscollector"
+	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/servicelabel"
+	"github.com/ligato/vpp-agent/plugins/govppmux"
 )
 
 // Plugin watches configuration of K8s resources (as reflected by KSR+CRD into ETCD)
@@ -78,6 +76,7 @@ func (p *Plugin) useL2xconnRenderer() {
 			ContivConf: p.ContivConf,
 			IPAM:       p.IPAM,
 			IPNet:      p.IPNet,
+			NodeSync:   p.NodeSync,
 			UpdateTxnFactory: func(change string) controller.UpdateOperations {
 				p.changes = append(p.changes, change)
 				return p.updateTxn

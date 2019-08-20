@@ -318,8 +318,7 @@ func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steered
 		NextHopAddr: ipv6AddrAny,
 	}
 
-	key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
-	config[key] = route
+	config[models.Key(route)] = route
 }
 
 func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNodeID uint32, config controller.KeyValuePairs) error {
