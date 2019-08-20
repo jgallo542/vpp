@@ -19,8 +19,8 @@ package ipam
 
 import (
 	"bytes"
-	"encoding/json"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
@@ -28,17 +28,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ksr"
-	"github.com/ligato/cn-infra/db/keyval"
 	"github.com/apparentlymart/go-cidr/cidr"
 	cnisb "github.com/containernetworking/cni/pkg/types/current"
-	"github.com/go-errors/errors"
-	"github.com/ligato/cn-infra/db/keyval"
-	"github.com/ligato/cn-infra/infra"
-	"github.com/ligato/cn-infra/rpc/rest"
-	"github.com/ligato/cn-infra/servicelabel"
 	"github.com/contiv/vpp/plugins/contivconf"
 	"github.com/contiv/vpp/plugins/contivconf/config"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -48,6 +39,12 @@ import (
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/go-errors/errors"
+	"github.com/gogo/protobuf/proto"
+	"github.com/ligato/cn-infra/db/keyval"
+	"github.com/ligato/cn-infra/infra"
+	"github.com/ligato/cn-infra/rpc/rest"
+	"github.com/ligato/cn-infra/servicelabel"
 )
 
 const (
