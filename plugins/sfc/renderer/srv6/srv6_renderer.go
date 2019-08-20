@@ -17,6 +17,7 @@ package srv6
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -33,8 +34,6 @@ import (
 )
 
 const (
-	ipv4HostPrefix   = "/32"
-	ipv6HostPrefix   = "/128"
 	ipv6PodSidPrefix = "/128"
 	ipv6AddrAny      = "::"
 )
@@ -150,12 +149,21 @@ const (
 
 const (
 	l2Endpoint int = iota
-	l3Endpoint
+	l3Dx4Endpoint
+	l3Dx6Endpoint
 )
 
 func (rndr *Renderer) getEndLinkCustomIfIPNet(sfc *renderer.ContivSFC) (endLinkCustomIfIPNet *net.IPNet) {
 	endLinkPod := sfc.Chain[len(sfc.Chain)-1].Pods[0]
 	return rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterfaceConfigName, sfc.Network)
+}
+
+// isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
+func isIPv6(ip net.IP) bool {
+	if ip == nil {
+		return false
+	}
+	return strings.Contains(ip.String(), ":")
 }
 
 func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC) int {
@@ -165,7 +173,11 @@ func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC) int {
 		return l2Endpoint
 	}
 
-	return l3Endpoint
+	if isIPv6(endIPNet.IP) {
+		return l3Dx6Endpoint
+	}
+
+	return l3Dx4Endpoint
 }
 
 // renderChain renders Contiv SFC to VPP configuration.
@@ -267,7 +279,15 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
-	case l3Endpoint:
+	case l3Dx4Endpoint:
+		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+			EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+				NextHop:           endIPNet.IP.String(),
+				OutgoingInterface: pod.InputInterface,
+			},
+		}
+	case l3Dx6Endpoint:
 		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
 			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
@@ -289,6 +309,7 @@ func (rndr *Renderer) createRouteToMainVrf(steeredIP net.IP, config controller.K
 }
 
 func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steeredIP net.IP, config controller.KeyValuePairs) {
+
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
 		DstNetwork:  steeredIP.String() + ipv6PodSidPrefix,
@@ -296,6 +317,7 @@ func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steered
 		ViaVrfId:    toVrf,
 		NextHopAddr: ipv6AddrAny,
 	}
+
 	key := vpp_l3.RouteKey(route.VrfId, route.DstNetwork, route.NextHopAddr)
 	config[key] = route
 }
@@ -319,7 +341,7 @@ func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNod
 			if err != nil {
 				return errors.Wrapf(err, "unable to create node-to-node transportation segment due to failure in generatation of node IP address for node id  %v", pod.NodeID)
 			}
-			segments = append(segments, rndr.IPAM.SidForServiceNodeLocalsid(nodeIP).String())
+			segments = append(segments, rndr.IPAM.SidForServiceNodeLocalsid(nodeIP.To16()).String())
 			lastSegmentNode = pod.NodeID
 		}
 		if i == len(sfc.Chain)-2 { // end link
@@ -367,7 +389,7 @@ func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *ren
 			rndr.Log.Debugf("[DEBUG] l2 steering: %v", steering)
 			config[models.Key(steering)] = steering
 		}
-	case l3Endpoint:
+	case l3Dx6Endpoint, l3Dx4Endpoint:
 		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 		steering := &vpp_srv6.Steering{
 			Name: fmt.Sprintf("forK8sSFC-%s", sfc.Name),
