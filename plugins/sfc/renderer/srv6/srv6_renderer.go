@@ -309,7 +309,6 @@ func (rndr *Renderer) createRouteToMainVrf(steeredIP net.IP, config controller.K
 }
 
 func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steeredIP net.IP, config controller.KeyValuePairs) {
-
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
 		DstNetwork:  steeredIP.String() + ipv6PodSidPrefix,
@@ -375,7 +374,7 @@ func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *ren
 	case l2Endpoint:
 		for _, startPod := range localStartPods {
 			steering := &vpp_srv6.Steering{
-				Name: fmt.Sprintf("forK8sSFC-%s", sfc.Name),
+				Name: fmt.Sprintf("forK8sSFC-%s-from-pod-%s", sfc.Name, startPod.ID.String()),
 				PolicyRef: &vpp_srv6.Steering_PolicyBsid{
 					PolicyBsid: bsid.String(),
 				},
