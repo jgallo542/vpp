@@ -95,11 +95,12 @@ func (p *Plugin) useL2xconnRenderer() {
 func (p *Plugin) useSRv6Renderer() {
 	p.srv6Renderer = &srv6.Renderer{
 		Deps: srv6.Deps{
-			Log:        p.Log.NewLogger("-sfcSRv6Renderer"),
-			Config:     p.config,
-			ContivConf: p.ContivConf,
-			IPAM:       p.IPAM,
-			IPNet:      p.IPNet,
+			Log:             p.Log.NewLogger("-sfcSRv6Renderer"),
+			Config:          p.config,
+			ContivConf:      p.ContivConf,
+			IPAM:            p.IPAM,
+			IPNet:           p.IPNet,
+			ConfigRetriever: p.ConfigRetriever,
 			UpdateTxnFactory: func(change string) controller.UpdateOperations {
 				p.changes = append(p.changes, change)
 				return p.updateTxn

@@ -27,6 +27,7 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/logging"
+	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
 	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
 	"github.com/ligato/vpp-agent/pkg/models"
@@ -50,6 +51,7 @@ type Deps struct {
 	ContivConf       contivconf.API
 	IPAM             ipam.API
 	IPNet            ipnet.API
+	ConfigRetriever  controller.ConfigRetriever
 	UpdateTxnFactory func(change string) (txn controller.UpdateOperations)
 	ResyncTxnFactory func() (txn controller.ResyncOperations)
 	Stats            statscollector.API /* used for exporting the statistics */
@@ -298,6 +300,29 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 	}
 
 	config[models.Key(localSID)] = localSID
+	// getting more info about local backend
+	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+	podID, found := rndr.IPAM.GetPodFromIP(endIPNet.IP)
+	if !found {
+		rndr.Log.Warnf("Unable to get pod info for backend IP %v", endIPNet.IP)
+	}
+	_, IfName, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
+	if !exists {
+		rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
+	}
+	key := linux_interfaces.InterfaceKey(IfName)
+	val := rndr.ConfigRetriever.GetConfig(key)
+	if val == nil {
+		rndr.Log.Warnf("Loopback interface for pod %v not found", podID)
+	}
+	loop := val.(*linux_interfaces.Interface)
+	arpTable := &vpp_l3.ARPEntry{
+		Interface:   pod.InputInterface,
+		IpAddress:   endIPNet.IP.String(),
+		PhysAddress: loop.PhysAddress,
+	}
+
+	config[models.Key(arpTable)] = arpTable
 }
 
 func (rndr *Renderer) createRouteToPodVrf(steeredIP net.IP, config controller.KeyValuePairs) {
