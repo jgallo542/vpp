@@ -19,6 +19,8 @@ import (
 	"net"
 	"strings"
 
+	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
+
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	"github.com/contiv/vpp/plugins/ipam"
@@ -27,7 +29,6 @@ import (
 	"github.com/contiv/vpp/plugins/sfc/renderer"
 	"github.com/contiv/vpp/plugins/statscollector"
 	"github.com/ligato/cn-infra/logging"
-	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
 	vpp_l3 "github.com/ligato/vpp-agent/api/models/vpp/l3"
 	vpp_srv6 "github.com/ligato/vpp-agent/api/models/vpp/srv6"
 	"github.com/ligato/vpp-agent/pkg/models"
@@ -268,6 +269,29 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	config[models.Key(localSID)] = localSID
 }
 
+func (rndr *Renderer) setARPForEndPod(endIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) {
+	// getting more info about local backend
+	_, IfName, _, exists := rndr.IPNet.GetPodIfNames(pod.ID.Namespace, pod.ID.Name)
+	if !exists {
+		rndr.Log.Warnf("Unable to get interfaces for pod %v", pod.ID)
+		return
+	}
+	key := linux_interfaces.InterfaceKey(IfName)
+	val := rndr.ConfigRetriever.GetConfig(key)
+	if val == nil {
+		rndr.Log.Warnf("Loopback interface for pod %v not found", pod.ID)
+		return
+	}
+	loop := val.(*linux_interfaces.Interface)
+	arpTable := &vpp_l3.ARPEntry{
+		Interface:   pod.InputInterface,
+		IpAddress:   endIPNet.IP.String(),
+		PhysAddress: loop.PhysAddress,
+	}
+
+	config[models.Key(arpTable)] = arpTable
+}
+
 func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddress net.IP, config controller.KeyValuePairs, pod *renderer.PodSF) {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
@@ -289,6 +313,7 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
+		rndr.setARPForEndPod(endIPNet, config, pod)
 	case l3Dx6Endpoint:
 		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
@@ -297,32 +322,10 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
+		rndr.setARPForEndPod(endIPNet, config, pod)
 	}
 
 	config[models.Key(localSID)] = localSID
-	// getting more info about local backend
-	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
-	podID, found := rndr.IPAM.GetPodFromIP(endIPNet.IP)
-	if !found {
-		rndr.Log.Warnf("Unable to get pod info for backend IP %v", endIPNet.IP)
-	}
-	_, IfName, _, exists := rndr.IPNet.GetPodIfNames(podID.Namespace, podID.Name)
-	if !exists {
-		rndr.Log.Warnf("Unable to get interfaces for pod %v", podID)
-	}
-	key := linux_interfaces.InterfaceKey(IfName)
-	val := rndr.ConfigRetriever.GetConfig(key)
-	if val == nil {
-		rndr.Log.Warnf("Loopback interface for pod %v not found", podID)
-	}
-	loop := val.(*linux_interfaces.Interface)
-	arpTable := &vpp_l3.ARPEntry{
-		Interface:   pod.InputInterface,
-		IpAddress:   endIPNet.IP.String(),
-		PhysAddress: loop.PhysAddress,
-	}
-
-	config[models.Key(arpTable)] = arpTable
 }
 
 func (rndr *Renderer) createRouteToPodVrf(steeredIP net.IP, config controller.KeyValuePairs) {
