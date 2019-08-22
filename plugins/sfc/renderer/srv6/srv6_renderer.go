@@ -271,22 +271,23 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 
 func (rndr *Renderer) setARPForEndPod(endIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) {
 	// getting more info about local backend
-	_, IfName, _, exists := rndr.IPNet.GetPodIfNames(pod.ID.Namespace, pod.ID.Name)
+	_, linuxIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, "tap1")
 	if !exists {
 		rndr.Log.Warnf("Unable to get interfaces for pod %v", pod.ID)
 		return
 	}
-	key := linux_interfaces.InterfaceKey(IfName)
+	key := linux_interfaces.InterfaceKey(linuxIfName)
 	val := rndr.ConfigRetriever.GetConfig(key)
 	if val == nil {
 		rndr.Log.Warnf("Loopback interface for pod %v not found", pod.ID)
 		return
 	}
-	loop := val.(*linux_interfaces.Interface)
+	linterface := val.(*linux_interfaces.Interface)
+	rndr.Log.Debugf("[DEBUG] interface: %v", linterface)
 	arpTable := &vpp_l3.ARPEntry{
 		Interface:   pod.InputInterface,
 		IpAddress:   endIPNet.IP.String(),
-		PhysAddress: loop.PhysAddress,
+		PhysAddress: linterface.PhysAddress,
 	}
 
 	config[models.Key(arpTable)] = arpTable

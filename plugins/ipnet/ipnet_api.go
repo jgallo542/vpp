@@ -21,7 +21,7 @@ type API interface {
 
 	// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
 	// with specified name and type associated with the given local pod name + namespace.
-	GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, exists bool)
+	GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, linuxIfName string, exists bool)
 
 	// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
 	GetExternalIfName(extIfName string, vlan uint32) (ifName string)
