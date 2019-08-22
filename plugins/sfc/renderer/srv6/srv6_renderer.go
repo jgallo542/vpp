@@ -237,7 +237,9 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()), config)
 					packetLocation = podVRFLocation
 				}
-				rndr.createInnerLinkLocalsids(sfc, pod, podIPNet.IP.To16(), config)
+				if err := rndr.createInnerLinkLocalsids(sfc, pod, podIPNet.IP.To16(), config); err != nil {
+					return config, errors.Wrapf(err, "can't create inner link local sid (pod %v) for sfc chain %v", pod.ID, sfc.Name)
+				}
 			}
 		} else {
 			if packetLocation == podVRFLocation {
@@ -257,7 +259,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	return config, nil
 }
 
-func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) {
+func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) error {
 	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, servicePodIP).String(),
@@ -269,16 +271,24 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 		}},
 	}
 	config[models.Key(localSID)] = localSID
+
+	endPointType := rndr.endPointType(sfc)
+	if endPointType == l3Dx4Endpoint || endPointType == l3Dx6Endpoint {
+		if err := rndr.setARPForPodInputInterface(endIPNet, config, pod); err != nil {
+			return errors.Wrapf(err, "can't set arp for service pod %v", pod.ID)
+		}
+	}
+	return nil
 }
 
-func (rndr *Renderer) setARPForEndPod(endIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) error {
+func (rndr *Renderer) setARPForPodInputInterface(podIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) error {
 	macAddress, err := rndr.podCustomIFPhysAddress(pod, pod.InputInterfaceConfigName)
 	if err != nil {
-		return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v on end pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
+		return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v on pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
 	}
 	arpTable := &vpp_l3.ARPEntry{
 		Interface:   pod.InputInterface,
-		IpAddress:   endIPNet.IP.String(),
+		IpAddress:   podIPNet.IP.String(),
 		PhysAddress: macAddress,
 	}
 
@@ -323,7 +333,7 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
-		if err := rndr.setARPForEndPod(endIPNet, config, pod); err != nil {
+		if err := rndr.setARPForPodInputInterface(endIPNet, config, pod); err != nil {
 			return errors.Wrapf(err, "can't set arp for end pod %v", pod.ID)
 		}
 	case l3Dx6Endpoint:
@@ -334,7 +344,7 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
-		if err := rndr.setARPForEndPod(endIPNet, config, pod); err != nil {
+		if err := rndr.setARPForPodInputInterface(endIPNet, config, pod); err != nil {
 			return errors.Wrapf(err, "can't set arp for end pod %v", pod.ID)
 		}
 	}
