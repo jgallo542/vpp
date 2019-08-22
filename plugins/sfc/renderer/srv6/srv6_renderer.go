@@ -229,7 +229,9 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()), config)
 					packetLocation = podVRFLocation
 				}
-				rndr.createEndLinkLocalsid(sfc, podIPNet.IP.To16(), config, pod)
+				if err := rndr.createEndLinkLocalsid(sfc, podIPNet.IP.To16(), config, pod); err != nil {
+					return config, errors.Wrapf(err, "can't create end link local sid (pod %v) for sfc chain %v", pod.ID, sfc.Name)
+				}
 			} else { // inner link
 				if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
 					rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()), config)
@@ -269,31 +271,38 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	config[models.Key(localSID)] = localSID
 }
 
-func (rndr *Renderer) setARPForEndPod(endIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) {
-	// getting more info about local backend
-	_, linuxIfName, exists := rndr.IPNet.GetPodCustomIfName(pod.ID.Namespace, pod.ID.Name, "tap1")
-	if !exists {
-		rndr.Log.Warnf("Unable to get interfaces for pod %v", pod.ID)
-		return
+func (rndr *Renderer) setARPForEndPod(endIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) error {
+	macAddress, err := rndr.podCustomIFPhysAddress(pod, pod.InputInterfaceConfigName)
+	if err != nil {
+		return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v on end pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
 	}
-	key := linux_interfaces.InterfaceKey(linuxIfName)
-	val := rndr.ConfigRetriever.GetConfig(key)
-	if val == nil {
-		rndr.Log.Warnf("Loopback interface for pod %v not found", pod.ID)
-		return
-	}
-	linterface := val.(*linux_interfaces.Interface)
-	rndr.Log.Debugf("[DEBUG] interface: %v", linterface)
 	arpTable := &vpp_l3.ARPEntry{
 		Interface:   pod.InputInterface,
 		IpAddress:   endIPNet.IP.String(),
-		PhysAddress: linterface.PhysAddress,
+		PhysAddress: macAddress,
 	}
 
 	config[models.Key(arpTable)] = arpTable
+	return nil
 }
 
-func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddress net.IP, config controller.KeyValuePairs, pod *renderer.PodSF) {
+func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName string) (string, error) {
+	_, linuxIfName, exists := rndr.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, customIFName)
+	if !exists {
+		return "", errors.Errorf("Unable to get logical name of custom interface for pod %v", pod.ID)
+	}
+	val := rndr.ConfigRetriever.GetConfig(linux_interfaces.InterfaceKey(linuxIfName))
+	if val == nil {
+		return "", errors.Errorf("Unable to get data for custom interface for pod %v", pod.ID)
+	}
+	linuxInterface, ok := val.(*linux_interfaces.Interface)
+	if !ok {
+		return "", errors.Errorf("Retrieved data for custom interface for pod %v have bad type (%+v)", pod.ID, val)
+	}
+	return linuxInterface.PhysAddress, nil
+}
+
+func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddress net.IP, config controller.KeyValuePairs, pod *renderer.PodSF) error {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
@@ -314,7 +323,9 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
-		rndr.setARPForEndPod(endIPNet, config, pod)
+		if err := rndr.setARPForEndPod(endIPNet, config, pod); err != nil {
+			return errors.Wrapf(err, "can't set arp for end pod %v", pod.ID)
+		}
 	case l3Dx6Endpoint:
 		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
@@ -323,10 +334,13 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 				OutgoingInterface: pod.InputInterface,
 			},
 		}
-		rndr.setARPForEndPod(endIPNet, config, pod)
+		if err := rndr.setARPForEndPod(endIPNet, config, pod); err != nil {
+			return errors.Wrapf(err, "can't set arp for end pod %v", pod.ID)
+		}
 	}
 
 	config[models.Key(localSID)] = localSID
+	return nil
 }
 
 func (rndr *Renderer) createRouteToPodVrf(steeredIP net.IP, config controller.KeyValuePairs) {

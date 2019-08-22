@@ -78,9 +78,9 @@ func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfNa
 	return vppIfName, "", mn.GetPodLoopIfName(podNamespace, podName), exists
 }
 
-// GetPodCustomIfName looks up logical interface name that corresponds to the custom interface
+// GetPodCustomIfNames looks up logical interface name that corresponds to the custom interface
 // with specified name and type associated with the given local pod name + namespace.
-func (mn *MockIPNet) GetPodCustomIfName(podNamespace, podName, customIfName string) (ifName string, linuxIfName string, exists bool) {
+func (mn *MockIPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string, linuxIfName string, exists bool) {
 	return "", linuxIfName, false
 }
 
