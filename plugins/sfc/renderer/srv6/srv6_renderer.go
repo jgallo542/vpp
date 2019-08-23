@@ -151,7 +151,7 @@ const (
 )
 
 const (
-	l2Endpoint int = iota
+	l2DX2Endpoint int = iota
 	l3Dx4Endpoint
 	l3Dx6Endpoint
 )
@@ -173,7 +173,7 @@ func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC) int {
 	// if end pond IP address is nil, then we use l2endpoint
 	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 	if endIPNet == nil {
-		return l2Endpoint
+		return l2DX2Endpoint
 	}
 
 	if isIPv6(endIPNet.IP) {
@@ -260,24 +260,32 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 }
 
 func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) error {
-	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, servicePodIP).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
+	}
+
+	switch rndr.endPointType(sfc) {
+	case l2DX2Endpoint:
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
+			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
+			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
+		}}
+	case l3Dx4Endpoint:
+		fallthrough
+	case l3Dx6Endpoint:
+		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress:  endIPNet.IP.String(),
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
 			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
-		}},
-	}
-	config[models.Key(localSID)] = localSID
+		}}
 
-	endPointType := rndr.endPointType(sfc)
-	if endPointType == l3Dx4Endpoint || endPointType == l3Dx6Endpoint {
 		if err := rndr.setARPForPodInputInterface(endIPNet, config, pod); err != nil {
 			return errors.Wrapf(err, "can't set arp for service pod %v", pod.ID)
 		}
 	}
+	config[models.Key(localSID)] = localSID
 	return nil
 }
 
@@ -319,7 +327,7 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 	}
 
 	switch rndr.endPointType(sfc) {
-	case l2Endpoint:
+	case l2DX2Endpoint:
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX2{
 			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
 				OutgoingInterface: pod.InputInterface,
@@ -424,7 +432,7 @@ func (rndr *Renderer) createPolicy(sfc *renderer.ContivSFC, bsid net.IP, thisNod
 
 func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP, config controller.KeyValuePairs) {
 	switch rndr.endPointType(sfc) {
-	case l2Endpoint:
+	case l2DX2Endpoint:
 		for _, startPod := range localStartPods {
 			steering := &vpp_srv6.Steering{
 				Name: fmt.Sprintf("forK8sSFC-%s-from-pod-%s", sfc.Name, startPod.ID.String()),
