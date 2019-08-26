@@ -68,7 +68,6 @@ type Deps struct {
 	infra.PluginDeps
 	StatusCheck statuscheck.PluginStatusWriter // inject
 	Resync      *resync.Plugin
-	Serializer  keyval.Serializer // optional, by default the JSON serializer is used
 }
 
 // Init retrieves ETCD configuration and establishes a new connection
@@ -138,11 +137,6 @@ func (p *Plugin) NewBroker(keyPrefix string) keyval.ProtoBroker {
 // NewWatcher creates new instance of prefixed broker that provides API with arguments of type proto.Message.
 func (p *Plugin) NewWatcher(keyPrefix string) keyval.ProtoWatcher {
 	return p.protoWrapper.NewWatcher(keyPrefix)
-}
-
-// RawAccess allows to access data in the database as raw bytes (i.e. not formatted by protobuf).
-func (p *Plugin) RawAccess() keyval.KvBytesPlugin {
-	return p.connection
 }
 
 // Disabled returns *true* if the plugin is not in use due to missing
@@ -253,13 +247,7 @@ func (p *Plugin) configureConnection() {
 		}
 		p.startPeriodicAutoCompact(p.config.AutoCompact)
 	}
-	var serializer keyval.Serializer
-	if p.Serializer != nil {
-		serializer = p.Serializer
-	} else {
-		serializer = &keyval.SerializerJSON{}
-	}
-	p.protoWrapper = kvproto.NewProtoWrapper(p.connection, serializer)
+	p.protoWrapper = kvproto.NewProtoWrapper(p.connection, &keyval.SerializerJSON{})
 }
 
 // ETCD status check probe function
