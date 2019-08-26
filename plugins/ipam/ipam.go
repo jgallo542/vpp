@@ -84,6 +84,8 @@ type IPAM struct {
 	assignedPodIPs map[string]*podIPAllocation
 	// pod -> allocated IP address
 	podToIP map[podmodel.ID]*podIPInfo
+	// remote pod IP info
+	remotePodIP map[podmodel.ID]*podIPInfo
 	// counter denoting last assigned pod IP address
 	lastPodIPAssigned int
 
@@ -194,9 +196,12 @@ func (i *IPAM) HandlesEvent(event controller.Event) bool {
 		}
 	}
 
-	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
-		ksChange.Resource == vnialloc.VxlanVNIKeyword {
-		return true
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange {
+		if ksChange.Resource == vnialloc.VxlanVNIKeyword ||
+			ksChange.Resource == ipalloc.Keyword ||
+			ksChange.Resource == podmodel.PodKeyword {
+			return true
+		}
 	}
 
 	// unhandled event
@@ -263,58 +268,64 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 
 	for _, podProto := range kubeStateData[podmodel.PodKeyword] {
 		pod := podProto.(*podmodel.Pod)
-		// ignore pods deployed on other nodes or without IP address
-		podIPAddress := net.ParseIP(pod.IpAddress)
-		if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
-			continue
-		}
-
-		// register address as already allocated
-		addr := new(big.Int).SetBytes(podIPAddress)
 		podID := podmodel.ID{Name: pod.Name, Namespace: pod.Namespace}
-		i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
-			pod:    podID,
-			mainIP: true,
-		}
-		i.podToIP[podID] = &podIPInfo{
-			mainIP:      podIPAddress,
-			customIfIPs: map[string]net.IP{},
-		}
-		diff := int(addr.Sub(addr, networkPrefix).Int64())
-		if i.lastPodIPAssigned < diff {
-			i.lastPodIPAssigned = diff
+		podIPAddress := net.ParseIP(pod.IpAddress)
+		// ignore pods without IP address
+		if podIPAddress != nil {
+			if i.podSubnetThisNode.Contains(podIPAddress) { // local pod
+				// register address as already allocated
+				addr := new(big.Int).SetBytes(podIPAddress)
+				i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
+					pod:    podID,
+					mainIP: true,
+				}
+				i.podToIP[podID] = &podIPInfo{
+					mainIP:      podIPAddress,
+					customIfIPs: map[string]net.IP{},
+				}
+				diff := int(addr.Sub(addr, networkPrefix).Int64())
+				if i.lastPodIPAssigned < diff {
+					i.lastPodIPAssigned = diff
+				}
+			} else { // remote pod
+				i.remotePodIP[podID] = &podIPInfo{
+					mainIP:      podIPAddress,
+					customIfIPs: map[string]net.IP{},
+				}
+			}
 		}
 	}
 
 	// resync custom interface IP allocations
 	for _, ipAllocProto := range kubeStateData[ipalloc.Keyword] {
 		ipAlloc := ipAllocProto.(*ipalloc.CustomIPAllocation)
-
 		for _, customAlloc := range ipAlloc.CustomInterfaces {
-			podIPAddress := net.ParseIP(customAlloc.IpAddress)
-			// ignore pods deployed on other nodes or without IP address
-			if podIPAddress == nil || !i.podSubnetThisNode.Contains(podIPAddress) {
-				continue
-			}
-
-			// register address as already allocated
-			addr := new(big.Int).SetBytes(podIPAddress)
 			podID := podmodel.ID{Name: ipAlloc.PodName, Namespace: ipAlloc.PodNamespace}
-			i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
-				pod:             podID,
-				mainIP:          false,
-				customIfName:    customAlloc.Name,
-				customIfNetwork: customAlloc.Network,
-			}
-			if _, found := i.podToIP[podID]; !found {
-				i.podToIP[podID] = &podIPInfo{
-					customIfIPs: map[string]net.IP{},
+			podIPAddress := net.ParseIP(customAlloc.IpAddress)
+			// ignore pods without IP address
+			if podIPAddress != nil {
+				if i.podSubnetThisNode.Contains(podIPAddress) { // local pod
+					// register address as already allocated
+					addr := new(big.Int).SetBytes(podIPAddress)
+					i.assignedPodIPs[podIPAddress.String()] = &podIPAllocation{
+						pod:             podID,
+						mainIP:          false,
+						customIfName:    customAlloc.Name,
+						customIfNetwork: customAlloc.Network,
+					}
+					if _, found := i.podToIP[podID]; !found {
+						i.podToIP[podID] = &podIPInfo{
+							customIfIPs: map[string]net.IP{},
+						}
+					}
+					i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
+					diff := int(addr.Sub(addr, networkPrefix).Int64())
+					if i.lastPodIPAssigned < diff {
+						i.lastPodIPAssigned = diff
+					}
+				} else { // remote pod
+					i.remotePodIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
 				}
-			}
-			i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
-			diff := int(addr.Sub(addr, networkPrefix).Int64())
-			if i.lastPodIPAssigned < diff {
-				i.lastPodIPAssigned = diff
 			}
 		}
 	}
@@ -356,6 +367,7 @@ func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *co
 	}
 	i.lastPodIPAssigned = 1
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
+	i.remotePodIP = make(map[podmodel.ID]*podIPInfo)
 	i.podToIP = make(map[podmodel.ID]*podIPInfo)
 
 	return nil
@@ -428,6 +440,51 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 					LocalPodCIDR: nodeUpdate.NewState.PodCIDR,
 				})
 				i.Log.Infof("Sent PodCIDRChange event to the event loop for PodCIDRChange")
+			}
+		}
+	}
+
+	// handles remote pod custom interface ip allocation
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
+		ksChange.Resource == ipalloc.Keyword {
+		// update remote pods custom interfaces
+		if newIPAlloc, newOK := ksChange.NewValue.(*ipalloc.CustomIPAllocation); newOK {
+			podID := podmodel.ID{Name: newIPAlloc.PodName, Namespace: newIPAlloc.PodNamespace}
+			if _, exists := i.podToIP[podID]; !exists { // pod is remote
+				if _, found := i.remotePodIP[podID]; !found {
+					i.remotePodIP[podID] = &podIPInfo{
+						customIfIPs: map[string]net.IP{},
+					}
+				}
+				i.remotePodIP[podID].customIfIPs = make(map[string]net.IP)
+				for _, customAlloc := range newIPAlloc.CustomInterfaces {
+					podIPAddress := net.ParseIP(customAlloc.IpAddress)
+					i.remotePodIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
+				}
+			}
+		}
+	}
+
+	if ksChange, isKSChange := event.(*controller.KubeStateChange); isKSChange &&
+		ksChange.Resource == podmodel.PodKeyword {
+		oldPod, _ := ksChange.PrevValue.(*podmodel.Pod)
+		newPod, _ := ksChange.NewValue.(*podmodel.Pod)
+		if oldPod != nil && newPod == nil { // delete pod event
+			if !i.podSubnetThisNode.Contains(net.ParseIP(oldPod.IpAddress)) { // remote pod
+				deletedPodID := podmodel.ID{Name: oldPod.Name, Namespace: oldPod.Namespace}
+				delete(i.remotePodIP, deletedPodID)
+			}
+		} else if newPod != nil { // update pod event
+			if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil && !i.podSubnetThisNode.Contains(newIPAddress) { // remote pod
+				updatedPodID := podmodel.ID{Name: newPod.Name, Namespace: newPod.Namespace}
+				if pod, exists := i.remotePodIP[updatedPodID]; exists {
+					pod.mainIP = newIPAddress
+				} else {
+					i.remotePodIP[updatedPodID] = &podIPInfo{
+						mainIP:      newIPAddress,
+						customIfIPs: map[string]net.IP{},
+					}
+				}
 			}
 		}
 	}
@@ -830,35 +887,28 @@ func (i *IPAM) tryToAllocateIP(index int, networkPrefix *net.IPNet) (assignedIP 
 }
 
 // GetPodIP returns the allocated pod IP, together with the mask.
+// Searches for both local and remote pods
 // Returns nil if the pod does not have allocated IP address.
 func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	allocation, found := i.podToIP[podID]
-	if !found {
-		return nil
+	allocation, subnetAddr, found := i.getPodIfsAndSubnet(podID)
+	if found {
+		addrLen := addrLenFromNet(subnetAddr)
+		return &net.IPNet{IP: allocation.mainIP, Mask: net.CIDRMask(addrLen, addrLen)}
 	}
-	addrLen := addrLenFromNet(i.podSubnetThisNode)
-	return &net.IPNet{IP: allocation.mainIP, Mask: net.CIDRMask(addrLen, addrLen)}
+	return nil
 }
 
 // GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
+// Searches for both local and remote pods
 // Returns nil if the pod does not have allocated custom interface IP address.
 func (i *IPAM) GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.IPNet {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	allocation, found := i.podToIP[podID]
-	if !found {
-		return nil
+	allocation, subnetAddr, found := i.getPodIfsAndSubnet(podID)
+	if found {
+		if ip, found := allocation.customIfIPs[customIfID(ifName, network)]; found {
+			addrLen := addrLenFromNet(subnetAddr)
+			return &net.IPNet{IP: ip, Mask: net.CIDRMask(addrLen, addrLen)}
+		}
 	}
-
-	if ip, found := allocation.customIfIPs[customIfID(ifName, network)]; found {
-		addrLen := addrLenFromNet(i.podSubnetThisNode)
-		return &net.IPNet{IP: ip, Mask: net.CIDRMask(addrLen, addrLen)}
-	}
-
 	return nil
 }
 
@@ -1298,6 +1348,24 @@ func (i *IPAM) dbPutIfNotExists(key string, val proto.Message) (succeeded bool, 
 	}
 	ksrPrefix := servicelabel.GetDifferentAgentPrefix(ksr.MicroserviceLabel)
 	return i.RemoteDB.PutIfNotExists(ksrPrefix+key, encoded)
+}
+
+// getPodIfsAndSubnet returns local/remote pod interfaces with subnet
+func (i *IPAM) getPodIfsAndSubnet(podID podmodel.ID) (*podIPInfo, *net.IPNet, bool) {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	allocation, local := i.podToIP[podID]
+	if local {
+		return allocation, i.podSubnetThisNode, true
+	}
+
+	allocation, remote := i.remotePodIP[podID]
+	if remote {
+		return allocation, i.podSubnetAllNodes, true
+	}
+
+	return nil, nil, false
 }
 
 func isIPv6Net(network *net.IPNet) bool {
