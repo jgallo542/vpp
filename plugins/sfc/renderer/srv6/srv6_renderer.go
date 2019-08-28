@@ -277,14 +277,14 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	case l3Dx4Endpoint:
 		fallthrough
 	case l3Dx6Endpoint:
-		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+		podOutputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.OutputInterfaceConfigName, sfc.Network)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
-			L3ServiceAddress:  endIPNet.IP.String(),
+			L3ServiceAddress:  podOutputIfIPNet.IP.String(),
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
 			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
 		}}
 
-		if err := rndr.setARPForPodInputInterface(endIPNet, config, pod); err != nil {
+		if err := rndr.setARPForPodInputInterface(podOutputIfIPNet, config, pod); err != nil {
 			return errors.Wrapf(err, "can't set arp for service pod %v", pod.ID)
 		}
 	}
