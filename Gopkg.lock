@@ -752,8 +752,8 @@
   version = "v1.14.1"
 
 [[projects]]
-  branch = "dev"
-  digest = "1:133f65c1b59df3dc749deb5fc9361e4aead1913840105e65bf291127f57fcf2e"
+  branch = "master"
+  digest = "1:aa00e0d1437bf3fcd7a14a2045ae96a39a80b30242fe42d413ec2896debb5bb9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -793,10 +793,10 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "0af3fde9febd1315467b2f2367ef5beb814dc21a"
+  revision = "61443bee9914521191283f41c8715c41aaaa47f4"
 
 [[projects]]
-  digest = "1:a5ad91aeb31539b3c81263ce9f0d7423f1f3c506e00fbd5d1f43ec8c1a53f80b"
+  digest = "1:4a42689cfdad63602428befc56103c35b257ac58c3f70b75d92e4065f22ae6fe"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -979,8 +979,8 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "1de975b62f1d4fa580515873343b5eb24f9aac0d"
-  source = "github.com/fgschwan/vpp-agent"
+  revision = "8cdc8da9b3b5aab68d6897487a665eacf54248a4"
+  version = "v2.2.0"
 
 [[projects]]
   branch = "master"
