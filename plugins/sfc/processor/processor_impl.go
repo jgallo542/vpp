@@ -89,7 +89,7 @@ func (sp *SFCProcessor) Update(event controller.Event) error {
 					return sp.processNewSFC(sfc)
 				}
 				oldSfc := k8sChange.PrevValue.(*sfcmodel.ServiceFunctionChain)
-				return sp.processUpdatedSFC(oldSfc, sfc)
+				return sp.processUpdatedSFC(oldSfc, sfc, nil)
 			}
 			sfc := k8sChange.PrevValue.(*sfcmodel.ServiceFunctionChain)
 			return sp.processDeletedSFC(sfc)
@@ -144,7 +144,7 @@ func (sp *SFCProcessor) Resync(kubeStateData controller.KubeStateData) error {
 	for _, svcProto := range kubeStateData[sfcmodel.Keyword] {
 		sfc := svcProto.(*sfcmodel.ServiceFunctionChain)
 		sp.configuredSFCs[sfc.Name] = sfc
-		contivSFC := sp.renderServiceFunctionChain(sfc)
+		contivSFC := sp.renderServiceFunctionChain(sfc, nil)
 		if contivSFC != nil {
 			confResyncEv.Chains = append(confResyncEv.Chains, contivSFC)
 		}
@@ -191,7 +191,7 @@ func (sp *SFCProcessor) processUpdatedPod(pod *podmodel.Pod) error {
 	}
 
 	// process SFCs that this pod may be affecting
-	err := sp.processSFCsForPod(podData)
+	err := sp.processSFCsForPod(podData, false)
 
 	return err
 }
@@ -210,7 +210,7 @@ func (sp *SFCProcessor) processDeletedPod(pod *podmodel.Pod) error {
 	}
 
 	// process SFCs that this pod may be affecting
-	err := sp.processSFCsForPod(podData)
+	err := sp.processSFCsForPod(podData, true)
 
 	return err
 }
@@ -226,7 +226,7 @@ func (sp *SFCProcessor) processUpdatedPodCustomIfs(pod *ipnet.PodCustomIfUpdate)
 	}
 
 	// process SFCs that this pod may be affecting
-	err := sp.processSFCsForPod(podData)
+	err := sp.processSFCsForPod(podData, false)
 
 	return err
 }
@@ -265,7 +265,7 @@ func (sp *SFCProcessor) processNewSFC(sfc *sfcmodel.ServiceFunctionChain) error 
 	sp.configuredSFCs[sfc.Name] = sfc
 
 	// render the SFC to a less-abstract SFC representation
-	contivSFC := sp.renderServiceFunctionChain(sfc)
+	contivSFC := sp.renderServiceFunctionChain(sfc, nil)
 	if contivSFC == nil {
 		return nil
 	}
@@ -282,13 +282,13 @@ func (sp *SFCProcessor) processNewSFC(sfc *sfcmodel.ServiceFunctionChain) error 
 }
 
 // processUpdatedSFC handles the event of updating an existing service function chain.
-func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFunctionChain) (err error) {
+func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFunctionChain, deletedPod *podmanager.Pod) (err error) {
 
 	sp.Log.Infof("Updated SFC: %v", newSFC)
 	sp.configuredSFCs[newSFC.Name] = newSFC
 
-	oldContivSFC := sp.renderServiceFunctionChain(oldSFC)
-	newContivSFC := sp.renderServiceFunctionChain(newSFC)
+	oldContivSFC := sp.renderServiceFunctionChain(oldSFC, nil)
+	newContivSFC := sp.renderServiceFunctionChain(newSFC, deletedPod)
 	if oldContivSFC == nil && newContivSFC == nil {
 		return nil // no-op, old nor new SFC cannot be rendered
 	}
@@ -328,7 +328,7 @@ func (sp *SFCProcessor) processDeletedSFC(sfc *sfcmodel.ServiceFunctionChain) er
 	delete(sp.configuredSFCs, sfc.Name)
 
 	// render the SFC to a less-abstract SFC representation
-	contivSFC := sp.renderServiceFunctionChain(sfc)
+	contivSFC := sp.renderServiceFunctionChain(sfc, nil)
 	if contivSFC == nil {
 		return nil
 	}
@@ -345,7 +345,7 @@ func (sp *SFCProcessor) processDeletedSFC(sfc *sfcmodel.ServiceFunctionChain) er
 }
 
 // processSFCsForPod process SFCs that may be affected by presence/absence of the specified pod.
-func (sp *SFCProcessor) processSFCsForPod(pod *podmanager.Pod) (err error) {
+func (sp *SFCProcessor) processSFCsForPod(pod *podmanager.Pod, isDelete bool) (err error) {
 	sfcs := sp.getSFCsReferencingPod(pod)
 
 	if len(sfcs) > 1 {
@@ -354,7 +354,12 @@ func (sp *SFCProcessor) processSFCsForPod(pod *podmanager.Pod) (err error) {
 
 	for _, sfc := range sfcs {
 		oldSFC := sp.renderedSFCs[sfc.Name]
-		err = sp.processUpdatedSFC(oldSFC, sfc)
+
+		if isDelete {
+			err = sp.processUpdatedSFC(oldSFC, sfc, pod)
+		} else {
+			err = sp.processUpdatedSFC(oldSFC, sfc, nil)
+		}
 
 		if err != nil {
 			return err
@@ -388,7 +393,7 @@ func (sp *SFCProcessor) processSFCsForExtIf(extIf *extifmodel.ExternalInterface)
 
 	for _, sfc := range sfcs {
 		oldSFC := sp.renderedSFCs[sfc.Name]
-		err = sp.processUpdatedSFC(oldSFC, sfc)
+		err = sp.processUpdatedSFC(oldSFC, sfc, nil)
 
 		if err != nil {
 			return err
@@ -414,7 +419,7 @@ func (sp *SFCProcessor) getSFCsReferencingExtIf(extIf *extifmodel.ExternalInterf
 }
 
 // renderServiceFunctionChain renders SFC in NB format to its less-abstract representation intended for the renderers.
-func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunctionChain) *renderer.ContivSFC {
+func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunctionChain, deletedPod *podmanager.Pod) *renderer.ContivSFC {
 	if sfc == nil {
 		return nil
 	}
@@ -426,7 +431,7 @@ func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunction
 	for _, serviceFunc := range sfc.Chain {
 		switch serviceFunc.Type {
 		case sfcmodel.ServiceFunctionChain_ServiceFunction_Pod:
-			found := sp.renderServiceFunctionPod(serviceFunc, contivSFC)
+			found := sp.renderServiceFunctionPod(serviceFunc, contivSFC, deletedPod)
 			if !found {
 				sp.Log.Debugf("No matching pods were found for the service function %v, "+
 					"skipping this SFC", serviceFunc)
@@ -448,7 +453,7 @@ func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunction
 // renderServiceFunctionPod renders a service function element of pod type.
 // Returns true if a matching pod(s) has been found, false otherwise.
 func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChain_ServiceFunction,
-	sfc *renderer.ContivSFC) bool {
+	sfc *renderer.ContivSFC, deletedPod *podmanager.Pod) bool {
 
 	sfPods := make([]*renderer.PodSF, 0)
 
@@ -467,7 +472,10 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
 		if sp.podMatchesSelector(pod, f.PodSelector) {
-			if pod.IPAddress == "" {
+			if deletedPod != nil && deletedPod.ID == podID {
+				continue
+			}
+			if sp.IPAM.GetPodIP(podID) == nil {
 				continue
 			}
 			nodeID, _ := sp.IPAM.NodeIDFromPodIP(net.ParseIP(pod.IPAddress))

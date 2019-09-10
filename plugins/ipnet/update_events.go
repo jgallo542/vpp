@@ -103,7 +103,7 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 				if err != nil {
 					return "", err
 				}
-				changes  = append(changes, "deallocate POD IP")
+				changes = append(changes, "deallocate POD IP")
 			}
 			return strJoinIfNotEmpty(changes...), nil
 

@@ -466,7 +466,7 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 			}
 		case vnialloc.VxlanVNIKeyword:
 			// update VNI allocations
-			if ksChange.NewValue != nil {				
+			if ksChange.NewValue != nil {
 				alloc := ksChange.NewValue.(*vnialloc.VxlanVniAllocation)
 				i.allocatedVNIs[alloc.Vni] = alloc.VxlanName
 				i.vxlanVNIs[alloc.VxlanName] = alloc.Vni
