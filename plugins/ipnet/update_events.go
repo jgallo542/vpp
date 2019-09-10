@@ -82,9 +82,10 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 		switch ksChange.Resource {
 
 		case podmodel.PodKeyword:
-			var change string
+			var changes []string
 			if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
-				change, err = n.updateSrv6DX6NodeToNodeTunnel(ksChange, txn)
+				change, err := n.updateSrv6DX6NodeToNodeTunnel(ksChange, txn)
+				changes = append(changes, change)
 				if err != nil {
 					return "", err
 				}
@@ -93,7 +94,18 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 			if err = n.pushPodCustomIfUpdateEventIfNeeded(ksChange); err != nil {
 				return "", err
 			}
-			return change, nil
+
+			if ksChange.NewValue == nil { // pod already disconnected, now the record is also getting removed
+				// release IP address of the POD
+				pod := ksChange.PrevValue.(*podmodel.Pod)
+				podID := podmodel.GetID(pod)
+				err = n.IPAM.ReleasePodIPs(podID)
+				if err != nil {
+					return "", err
+				}
+				changes  = append(changes, "deallocate POD IP")
+			}
+			return strJoinIfNotEmpty(changes...), nil
 
 		case extifmodel.Keyword:
 			// external interface data change
@@ -307,13 +319,6 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 	n.vppIfaceToPodMutex.Lock()
 	delete(n.vppIfaceToPod, vppIface)
 	n.vppIfaceToPodMutex.Unlock()
-
-	// 3. release IP address of the POD
-
-	err = n.IPAM.ReleasePodIPs(pod.ID)
-	if err != nil {
-		return "", err
-	}
 	return "un-configure IP connectivity", nil
 }
 
