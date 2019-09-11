@@ -301,6 +301,7 @@ func (rndr *Renderer) setARPForPodInputInterface(podIPNet *net.IPNet, config con
 		Interface:   pod.InputInterface,
 		IpAddress:   podIPNet.IP.String(),
 		PhysAddress: macAddress,
+		Static:      true,
 	}
 
 	config[models.Key(arpTable)] = arpTable
