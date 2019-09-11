@@ -240,8 +240,10 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 				if err := rndr.createInnerLinkLocalsids(sfc, pod, podIPNet.IP.To16(), config); err != nil {
 					return config, errors.Wrapf(err, "can't create inner link local sid (pod %v) for sfc chain %v", pod.ID, sfc.Name)
 				}
-				if rndr.endPointType(sfc) == l2DX2Endpoint { // l2DX2Endpoint -> L2 SR-unware service
-					packetLocation = mainVRFLocation // proxy leaving packets check main table instead of pod vrf table (maybe that check table service output interface and that is stub so default table 0)
+				if rndr.endPointType(sfc) == l2DX2Endpoint || rndr.endPointType(sfc) == l3Dx4Endpoint {
+					// proxy leaving packets check main table instead of pod vrf table // TODO bug?
+					// (l2DX2Endpoint -> L2 SR-unware service, l3DX4Endpoint -> L3 IPv4 SR-unware service)
+					packetLocation = mainVRFLocation
 				}
 			}
 		} else {
