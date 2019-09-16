@@ -276,9 +276,7 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
 			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
 		}}
-	case l3Dx4Endpoint:
-		fallthrough
-	case l3Dx6Endpoint:
+	case l3Dx4Endpoint, l3Dx6Endpoint:
 		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterfaceConfigName, sfc.Network)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress:  podInputIfIPNet.IP.String(),
