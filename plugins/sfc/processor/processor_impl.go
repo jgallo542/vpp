@@ -458,19 +458,18 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 	sfPods := make([]*renderer.PodSF, 0)
 
 	// if only "interface" is defined, render that as both input and output interface
-	inputIf := f.InputInterface
-	outputIf := f.OutputInterface
-	if inputIf == "" {
-		inputIf = f.Interface
+	inputIfCRDName := f.InputInterface
+	outputIfCRDName := f.OutputInterface
+	if inputIfCRDName == "" {
+		inputIfCRDName = f.Interface
 	}
-	if outputIf == "" {
-		outputIf = f.Interface
+	if outputIfCRDName == "" {
+		outputIfCRDName = f.Interface
 	}
-	inputIfConfig := inputIf
-	outputIfconfig := outputIf
 
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
+		var inputIfLogicalName, outputIfLogicalName string // interface names that will be use in VPP
 		if sp.podMatchesSelector(pod, f.PodSelector) {
 			if deletedPod != nil && deletedPod.ID == podID {
 				continue
@@ -484,14 +483,14 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 			if isLocal {
 				// process interface names to actual pod interface names
 				exists := false
-				if inputIf != "" {
-					inputIf, _, exists = sp.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, inputIf)
+				if inputIfCRDName != "" {
+					inputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, inputIfCRDName)
 					if !exists {
 						continue
 					}
 				}
-				if outputIf != "" {
-					outputIf, _, exists = sp.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, outputIf)
+				if outputIfCRDName != "" {
+					outputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, outputIfCRDName)
 					if !exists {
 						continue
 					}
@@ -502,10 +501,10 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 				ID:                        podID,
 				NodeID:                    nodeID,
 				Local:                     isLocal,
-				InputInterface:            inputIf,
-				OutputInterface:           outputIf,
-				InputInterfaceConfigName:  inputIfConfig,
-				OutputInterfaceConfigName: outputIfconfig,
+				InputInterface:            inputIfLogicalName,
+				OutputInterface:           outputIfLogicalName,
+				InputInterfaceConfigName:  inputIfCRDName,
+				OutputInterfaceConfigName: outputIfCRDName,
 			})
 		}
 	}
