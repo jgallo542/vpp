@@ -307,8 +307,8 @@ func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunction
 	// from different path)
 	// That means that path count is limited only by minimum of pods/interfaces selected for each link (
 	// pods/interfaces selected for end link can be reused unlimited times in paths)
-	pathCount := 1<<31 - 1                                         // more than possible selected pods count
-	for _, link := range filteredChain[1 : len(filteredChain)-1] { // only inner link
+	pathCount := 1<<31 - 1                                      // more than possible selected pods count
+	for _, link := range filteredChain[:len(filteredChain)-1] { // only inner links of original SFC chain
 		if len(link.Pods) < pathCount {
 			pathCount = len(link.Pods)
 		}
