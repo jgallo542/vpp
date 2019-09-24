@@ -17,6 +17,7 @@ package srv6
 import (
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 
 	linux_interfaces "github.com/ligato/vpp-agent/api/models/linux/interfaces"
@@ -238,7 +239,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 				pod := selectable
 				if pod.Local {
 					podIPNet := rndr.IPAM.GetPodIP(pod.ID) // pod IP already allocated (checked in path creation)
-					if i == len(path)-2 {                  // end link
+					if i == len(path)-1 {                  // end link
 						if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
 							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()), config)
 							packetLocation = podVRFLocation
@@ -300,6 +301,9 @@ func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunction
 		}
 	}
 
+	// sorting chain pod/interfaces to get the same path results on each node
+	rndr.sortPodsAndInterfaces(filteredChain)
+
 	// get path count
 	// Note: SRv6 proxy localsid (pod/interface for inner link in SFC chain) can be used only by one path
 	// due to nature of dynamic SRv6 proxy (cache filled by incomming packed and applied to whatever comes
@@ -326,6 +330,25 @@ func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunction
 	}
 
 	return paths, nil
+}
+
+// sortPodsAndInterfaces makes inplace sort of pods and external interfaces in given chain
+func (rndr *Renderer) sortPodsAndInterfaces(chain []*renderer.ServiceFunction) {
+	for _, link := range chain {
+		// sort pods by podID
+		sort.Slice(link.Pods, func(i, j int) bool {
+			return link.Pods[i].ID.String() < link.Pods[j].ID.String()
+		})
+
+		// sort external interfaces by NodeID and Interface name
+		sort.Slice(link.ExternalInterfaces, func(i, j int) bool {
+			id1 := fmt.Sprintf("%v # %v", link.ExternalInterfaces[i].NodeID,
+				link.ExternalInterfaces[i].InterfaceName)
+			id2 := fmt.Sprintf("%v # %v", link.ExternalInterfaces[j].NodeID,
+				link.ExternalInterfaces[j].InterfaceName)
+			return id1 < id2
+		})
+	}
 }
 
 // filterOnlyUsableServiceInstances filters out pods/interfaces that are not usable in SFC chain (
