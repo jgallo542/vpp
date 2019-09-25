@@ -84,6 +84,10 @@ type API interface {
 	// Returns nil if the pod does not have allocated IP address.
 	GetPodIP(podID podmodel.ID) *net.IPNet
 
+	// GetExternalInterfaceIP returns the allocated external interface IP.
+	// Returns nil if the interface does not have allocated IP address.
+	GetExternalInterfaceIP(vppInterface string, nodeID uint32) *net.IP
+
 	// AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
 	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error)
 
@@ -154,6 +158,9 @@ type API interface {
 	// JSON flag for every option). If contivCIDR is used it returns actual
 	// dissected subnets.
 	GetIPAMConfigForJSON() *config.IPAMConfig
+
+	// UpdateExternalInterfaceIPInfo is notifying IPAM about external interfacew IP allocation
+	UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ip net.IP, isDelete bool)
 }
 
 // PodCIDRChange is triggered when CIDR for PODs on the current node changes.

@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	controller "github.com/contiv/vpp/plugins/controller/api"
+	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
 	nslinuxcalls "github.com/ligato/vpp-agent/plugins/linux/nsplugin/linuxcalls"
 	"github.com/ligato/vpp-agent/plugins/vpp/binapi/vpp1908/vpe"
@@ -107,6 +108,29 @@ func (n *IPNet) executeDebugCLI(cmd string) (string, error) {
 		return "", err
 	}
 	return string(reply.Reply), err
+}
+
+// getNodeID get ID of specified node
+func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
+	if node, exists := n.NodeSync.GetAllNodes()[nodeName]; exists {
+		return node.ID, true
+	}
+	return 0, false
+}
+func (n *IPNet) notifyIpamExtIfChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
+	for _, node := range extIf.Nodes {
+		if nodeID, ok := n.getNodeID(node.Node); ok {
+			if ip := net.ParseIP(node.Ip); ip != nil {
+				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ip, isDelete)
+				return
+			} else {
+				if ip, _, err := net.ParseCIDR(node.Ip); err == nil {
+					n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ip, isDelete)
+					return
+				}
+			}
+		}
+	}
 }
 
 // hwAddrForNodeInterface generates hardware address for interface based on node ID.

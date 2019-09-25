@@ -348,6 +348,8 @@ func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOpera
 func (n *IPNet) updateExternalIf(extIf *extifmodel.ExternalInterface, txn controller.UpdateOperations,
 	eventType configEventType) (change string, err error) {
 
+	n.notifyIpamExtIfChange(extIf, eventType == configDelete)
+
 	config, updateConfig, err := n.externalInterfaceConfig(extIf, eventType)
 	if err != nil {
 		return "", err

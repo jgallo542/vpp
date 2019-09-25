@@ -88,6 +88,8 @@ type IPAM struct {
 	remotePodToIP map[podmodel.ID]*podIPInfo
 	// counter denoting last assigned pod IP address
 	lastPodIPAssigned int
+	// IP information about external interfaces
+	extIfToIP map[string][]extIfIPInfo
 
 	/********** VSwitch related variables **********/
 	// IP subnet used across all nodes for VPP to host Linux stack interconnect
@@ -128,6 +130,13 @@ type podIPInfo struct {
 	customIfIPs map[string]net.IP // custom interface name + network to IP address map
 }
 
+// extIfIPInfo holds the IP allocation info for external interface
+type extIfIPInfo struct {
+	nodeID       uint32
+	vppInterface string
+	ip           net.IP
+}
+
 // String provides human-readable representation of podIPAllocation
 func (a *podIPAllocation) String() string {
 	if a.mainIP {
@@ -142,6 +151,11 @@ func (i *podIPInfo) String() string {
 		return fmt.Sprintf("<IP=%s>", i.mainIP)
 	}
 	return fmt.Sprintf("<mainIP=%s, customIPs=%+v>", i.mainIP, i.customIfIPs)
+}
+
+// String provides human-readable representation of extIfIPInfo
+func (e *extIfIPInfo) String() string {
+	return fmt.Sprintf("<nodeID=%s, vppInterface=%s, ip=%s>", e.nodeID, e.vppInterface, e.ip)
 }
 
 // Deps lists dependencies of the IPAM plugin.
@@ -327,12 +341,14 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		"podSubnetGatewayIP=%v, hostInterconnectSubnetAllNodes=%v, "+
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
-		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v, vxlanVNIs=%v",
+		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v, vxlanVNIs=%v "+
+		"remotePodToIP=%+v, extIfToIP=%+v",
 		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
 		i.podSubnetGatewayIP, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
-		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned, i.vxlanVNIs)
+		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned, i.vxlanVNIs,
+		i.remotePodToIP, i.extIfToIP)
 	return
 }
 
@@ -352,6 +368,7 @@ func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *co
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
 	i.remotePodToIP = make(map[podmodel.ID]*podIPInfo)
 	i.podToIP = make(map[podmodel.ID]*podIPInfo)
+	i.extIfToIP = make(map[string][]extIfIPInfo)
 
 	return nil
 }
@@ -873,6 +890,22 @@ func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
 	return nil
 }
 
+// GetExternalInterfaceIP returns the allocated external interface IP.
+// Returns nil if the interface does not have allocated IP address.
+func (i *IPAM) GetExternalInterfaceIP(vppInterface string, nodeID uint32) *net.IP {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	for _, ipInfos := range i.extIfToIP {
+		for _, ipInfo := range ipInfos {
+			if ipInfo.vppInterface == vppInterface && ipInfo.nodeID == nodeID {
+				return &ipInfo.ip
+			}
+		}
+	}
+	return nil
+}
+
 // GetPodCustomIfIP returns the allocated custom interface pod IP, together with the mask.
 // Searches for both local and remote pods
 // Returns nil if the pod does not have allocated custom interface IP address.
@@ -1160,6 +1193,36 @@ func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
 	return i.combineMultipleIPAddresses(
 		newIPWithPositionableMaskFromIPNet(prefix),
 		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize, 128-prefixMaskSize))
+}
+
+// UpdateExternalInterfaceIPInfo is notifying IPAM about external interfacew IP allocation
+func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ip net.IP, isDelete bool) {
+	i.mutex.Lock()
+	defer i.mutex.Unlock()
+
+	if !isDelete {
+		if _, exists := i.extIfToIP[extif]; !exists {
+			i.extIfToIP[extif] = make([]extIfIPInfo, 0)
+		}
+		i.extIfToIP[extif] = append(i.extIfToIP[extif], extIfIPInfo{vppInterface: vppInterface, nodeID: nodeID, ip: ip})
+	} else {
+		if ipInfos, exists := i.extIfToIP[extif]; exists {
+			ind := -1
+			for index, ipInfo := range ipInfos { // try find a matching entry
+				if ipInfo.vppInterface == vppInterface && ipInfo.nodeID == nodeID {
+					ind = index
+					break
+				}
+			}
+			if ind >= 0 { // found entry, erase it
+				ipInfos[ind] = ipInfos[len(ipInfos)-1]
+				ipInfos = ipInfos[:len(ipInfos)-1]
+			}
+			if len(ipInfos) <= 0 { // no more ip infos, delete
+				delete(i.extIfToIP, extif)
+			}
+		}
+	}
 }
 
 // ipWithPositionableMask holds IP address with positionable mask that defines what part of IP address should be used
