@@ -20,7 +20,6 @@ package ipam
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
@@ -482,13 +481,15 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 		case podmodel.PodKeyword:
 			oldPod, _ := ksChange.PrevValue.(*podmodel.Pod)
 			newPod, _ := ksChange.NewValue.(*podmodel.Pod)
-			if oldPod != nil && newPod == nil { // delete pod event
-				if !i.podSubnetThisNode.Contains(net.ParseIP(oldPod.IpAddress)) { // remote pod
+			podNw := i.podNetworks[defaultPodNetworkName] // main pod interfaces
+			if oldPod != nil && newPod == nil {           // delete pod event
+				if !podNw.podSubnetThisNode.Contains(net.ParseIP(oldPod.IpAddress)) { // remote pod
 					deletedPodID := podmodel.ID{Name: oldPod.Name, Namespace: oldPod.Namespace}
 					delete(i.remotePodToIP, deletedPodID)
 				}
 			} else if newPod != nil { // update pod event
-				if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil && !i.podSubnetThisNode.Contains(newIPAddress) { // remote pod
+				if newIPAddress := net.ParseIP(newPod.IpAddress); newIPAddress != nil &&
+					!podNw.podSubnetThisNode.Contains(newIPAddress) { // remote pod
 					updatedPodID := podmodel.ID{Name: newPod.Name, Namespace: newPod.Namespace}
 					if pod, exists := i.remotePodToIP[updatedPodID]; exists {
 						pod.mainIP = newIPAddress
