@@ -21,6 +21,7 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
 	sfcmodel "github.com/contiv/vpp/plugins/crd/handler/servicefunctionchain/model"
+	"github.com/contiv/vpp/plugins/idalloc"
 	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ipnet"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -59,6 +60,7 @@ type Deps struct {
 	infra.PluginDeps
 	ServiceLabel    servicelabel.ReaderAPI
 	ContivConf      contivconf.API
+	IDAlloc         idalloc.API
 	IPAM            ipam.API
 	IPNet           ipnet.API
 	NodeSync        nodesync.API
@@ -74,6 +76,7 @@ func (p *Plugin) useL2xconnRenderer() {
 			Log:        p.Log.NewLogger("-sfcL2xconnRenderer"),
 			Config:     p.config,
 			ContivConf: p.ContivConf,
+			IDAlloc:    p.IDAlloc,
 			IPAM:       p.IPAM,
 			IPNet:      p.IPNet,
 			NodeSync:   p.NodeSync,

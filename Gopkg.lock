@@ -753,7 +753,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:e89101f51056614dec30e786e7a9aa9f743098e9d0972b149ad6ef71c205f19f"
+  digest = "1:aa00e0d1437bf3fcd7a14a2045ae96a39a80b30242fe42d413ec2896debb5bb9"
   name = "github.com/ligato/cn-infra"
   packages = [
     "agent",
@@ -793,10 +793,11 @@
     "utils/safeclose",
   ]
   pruneopts = "UT"
-  revision = "9bb0e395ce981f921420130be6d13a1582ed99f1"
+  revision = "61443bee9914521191283f41c8715c41aaaa47f4"
 
 [[projects]]
-  digest = "1:ecc9a38bfa4b707feca35ae219ec6ecfe742f64ea8242fd6865ef7f0652c7121"
+  branch = "dev"
+  digest = "1:aed45286cca5d88cc6b5821879573c89f5ec1657f7a06215580195ebd8f77fec"
   name = "github.com/ligato/vpp-agent"
   packages = [
     "api/configurator",
@@ -806,6 +807,7 @@
     "api/models/linux/iptables",
     "api/models/linux/l3",
     "api/models/linux/namespace",
+    "api/models/netalloc",
     "api/models/vpp",
     "api/models/vpp/abf",
     "api/models/vpp/acl",
@@ -850,6 +852,10 @@
     "plugins/linux/nsplugin",
     "plugins/linux/nsplugin/descriptor",
     "plugins/linux/nsplugin/linuxcalls",
+    "plugins/netalloc",
+    "plugins/netalloc/descriptor",
+    "plugins/netalloc/descriptor/adapter",
+    "plugins/netalloc/utils",
     "plugins/orchestrator",
     "plugins/restapi",
     "plugins/restapi/resturl",
@@ -982,7 +988,7 @@
     "plugins/vpp/stnplugin/vppcalls/vpp1908",
   ]
   pruneopts = "UT"
-  revision = "db302e2f65e5c7789f785796e42b03b36aae440f"
+  revision = "365640cac4d896376a9e3ec26a9c1ae2328bbecb"
 
 [[projects]]
   branch = "master"
@@ -1912,6 +1918,7 @@
     "github.com/ligato/vpp-agent/api/models/linux/iptables",
     "github.com/ligato/vpp-agent/api/models/linux/l3",
     "github.com/ligato/vpp-agent/api/models/linux/namespace",
+    "github.com/ligato/vpp-agent/api/models/netalloc",
     "github.com/ligato/vpp-agent/api/models/vpp",
     "github.com/ligato/vpp-agent/api/models/vpp/abf",
     "github.com/ligato/vpp-agent/api/models/vpp/acl",
