@@ -1167,6 +1167,22 @@ func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
 		newIPWithPositionableMask(sfcID, prefixMaskSize, 128-prefixMaskSize))
 }
 
+// SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
+func (i *IPAM) SidForSFCExternalIfLocalsid(externalIfName string, externalIfIP *net.IP) net.IP {
+	if externalIfIP != nil {
+		return i.SidForSFCEndLocalsid(*externalIfIP)
+	}
+
+	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
+	prefixMaskSize, _ := prefix.Mask.Size()
+
+	extIfID := i.computeExtIfID(externalIfName)
+	return i.combineMultipleIPAddresses(
+		newIPWithPositionableMaskFromIPNet(prefix),
+		newIPWithPositionableMask(extIfID, prefixMaskSize, 128-prefixMaskSize))
+
+}
+
 // SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
 // <serviceFunctionPodIP> IP address.
 func (i *IPAM) SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP {
@@ -1275,6 +1291,10 @@ func (i *IPAM) computeSFCID(sfcName string) net.IP {
 	h := sha256.New()
 	h.Write([]byte(sfcName))
 	return h.Sum(nil)[:16]
+}
+
+func (i *IPAM) computeExtIfID(extIfName string) net.IP {
+	return i.computeSFCID(extIfName)
 }
 
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>

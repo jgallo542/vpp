@@ -150,6 +150,9 @@ type API interface {
 	// <serviceFunctionPodIP> IP address.
 	SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP
 
+	// SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
+	SidForSFCExternalIfLocalsid(externalIf string, externalIfIP *net.IP) net.IP
+
 	// SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
 	SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP
 
