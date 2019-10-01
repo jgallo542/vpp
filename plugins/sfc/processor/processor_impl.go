@@ -558,9 +558,10 @@ func (sp *SFCProcessor) renderServiceFunctionInterface(f *sfcmodel.ServiceFuncti
 			nodeID = node.ID
 		}
 		sfIfs = append(sfIfs, &renderer.InterfaceSF{
-			InterfaceName: sp.IPNet.GetExternalIfName(nodeIf.VppInterfaceName, nodeIf.Vlan),
-			NodeID:        nodeID,
-			Local:         local,
+			InterfaceName:    sp.IPNet.GetExternalIfName(nodeIf.VppInterfaceName, nodeIf.Vlan),
+			VppInterfaceName: nodeIf.VppInterfaceName,
+			NodeID:           nodeID,
+			Local:            local,
 		})
 	}
 

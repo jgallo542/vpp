@@ -86,7 +86,7 @@ type API interface {
 
 	// GetExternalInterfaceIP returns the allocated external interface IP.
 	// Returns nil if the interface does not have allocated IP address.
-	GetExternalInterfaceIP(vppInterface string, nodeID uint32) *net.IP
+	GetExternalInterfaceIP(vppInterface string, nodeID uint32) net.IP
 
 	// AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
 	AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error)
@@ -151,7 +151,7 @@ type API interface {
 	SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionPodIP net.IP) net.IP
 
 	// SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
-	SidForSFCExternalIfLocalsid(externalIf string, externalIfIP *net.IP) net.IP
+	SidForSFCExternalIfLocalsid(externalIf string, externalIfIP net.IP) net.IP
 
 	// SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
 	SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP

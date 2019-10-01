@@ -18,7 +18,9 @@ package renderer
 
 import (
 	"fmt"
+	"net"
 
+	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -156,6 +158,39 @@ type PodSF struct {
 	OutputInterfaceConfigName string
 }
 
+func (pod PodSF) IsLocal() bool {
+	return pod.Local
+}
+
+func (pod PodSF) Identifier() string {
+	return pod.ID.String()
+}
+
+func (pod PodSF) TypeID() string {
+	return "pod"
+}
+
+func (pod PodSF) NodeIdentifier() uint32 {
+	return pod.NodeID
+}
+
+func (pod PodSF) IPNet(i ipam.API) *net.IPNet {
+	return i.GetPodIP(pod.ID)
+}
+
+func (pod PodSF) InInterface() string {
+	return pod.InputInterface
+}
+
+func (pod PodSF) OutInterface() string {
+	return pod.OutputInterface
+}
+
+func (pod PodSF) SidEndLocalSid(i ipam.API, podVRF, mainVRF uint32) (net.IP, uint32) {
+	address := pod.IPNet(i).IP.To16()
+	return i.SidForSFCEndLocalsid(address), podVRF
+}
+
 // String converts PodSF into a human-readable string.
 func (pod PodSF) String() string {
 	return fmt.Sprintf("{ID: %s, NodeID: %d, Local:%v, InputInterface: %s, OutputInterface:%s}",
@@ -166,10 +201,45 @@ func (pod PodSF) String() string {
 type InterfaceSF struct {
 	// InterfaceName contains name of the interface to/from which the traffic flows
 	// (can be used for the configuration without further processing).
-	InterfaceName string
+	InterfaceName    string // name of the vpp interface attached to this external interface
+	VppInterfaceName string // true if this is a node-local interface
 
 	NodeID uint32 // ID of the node where the interface resides
 	Local  bool   // true if this is a node-local interface
+}
+
+func (iface InterfaceSF) IsLocal() bool {
+	return iface.Local
+}
+
+func (iface InterfaceSF) Identifier() string {
+	return iface.InterfaceName
+}
+
+func (iface InterfaceSF) TypeID() string {
+	return "interface"
+}
+
+func (iface InterfaceSF) NodeIdentifier() uint32 {
+	return iface.NodeID
+}
+
+func (iface InterfaceSF) IPNet(i ipam.API) *net.IPNet {
+	ip := i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeIdentifier())
+	return &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}
+}
+
+func (iface InterfaceSF) InInterface() string {
+	return iface.InterfaceName
+}
+
+func (iface InterfaceSF) OutInterface() string {
+	return iface.InterfaceName
+}
+
+func (iface InterfaceSF) SidEndLocalSid(i ipam.API, podVRF, mainVRF uint32) (net.IP, uint32) {
+	address := iface.IPNet(i).IP
+	return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, address), podVRF // TODO Main?
 }
 
 // String converts InterfaceSF into a human-readable string.
