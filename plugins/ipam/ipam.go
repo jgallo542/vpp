@@ -892,14 +892,14 @@ func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
 
 // GetExternalInterfaceIP returns the allocated external interface IP.
 // Returns nil if the interface does not have allocated IP address.
-func (i *IPAM) GetExternalInterfaceIP(vppInterface string, nodeID uint32) *net.IP {
+func (i *IPAM) GetExternalInterfaceIP(vppInterface string, nodeID uint32) net.IP {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
 	for _, ipInfos := range i.extIfToIP {
 		for _, ipInfo := range ipInfos {
 			if ipInfo.vppInterface == vppInterface && ipInfo.nodeID == nodeID {
-				return &ipInfo.ip
+				return ipInfo.ip
 			}
 		}
 	}
@@ -1168,9 +1168,9 @@ func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
 }
 
 // SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
-func (i *IPAM) SidForSFCExternalIfLocalsid(externalIfName string, externalIfIP *net.IP) net.IP {
+func (i *IPAM) SidForSFCExternalIfLocalsid(externalIfName string, externalIfIP net.IP) net.IP {
 	if externalIfIP != nil {
-		return i.SidForSFCEndLocalsid(*externalIfIP)
+		return i.SidForSFCEndLocalsid(externalIfIP)
 	}
 
 	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
