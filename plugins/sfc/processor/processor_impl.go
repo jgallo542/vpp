@@ -282,7 +282,8 @@ func (sp *SFCProcessor) processNewSFC(sfc *sfcmodel.ServiceFunctionChain) error 
 }
 
 // processUpdatedSFC handles the event of updating an existing service function chain.
-func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFunctionChain, deletedPod *podmanager.Pod) (err error) {
+func (sp *SFCProcessor) processUpdatedSFC(oldSFC, newSFC *sfcmodel.ServiceFunctionChain,
+	deletedPod *podmanager.Pod) (err error) {
 
 	sp.Log.Infof("Updated SFC: %v", newSFC)
 	sp.configuredSFCs[newSFC.Name] = newSFC
@@ -419,7 +420,8 @@ func (sp *SFCProcessor) getSFCsReferencingExtIf(extIf *extifmodel.ExternalInterf
 }
 
 // renderServiceFunctionChain renders SFC in NB format to its less-abstract representation intended for the renderers.
-func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunctionChain, deletedPod *podmanager.Pod) *renderer.ContivSFC {
+func (sp *SFCProcessor) renderServiceFunctionChain(sfc *sfcmodel.ServiceFunctionChain,
+	deletedPod *podmanager.Pod) *renderer.ContivSFC {
 	if sfc == nil {
 		return nil
 	}
@@ -485,13 +487,15 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 				// process interface names to actual pod interface names
 				exists := false
 				if inputIfCRDName != "" {
-					inputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, inputIfCRDName)
+					inputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(
+						pod.ID.Namespace, pod.ID.Name, inputIfCRDName)
 					if !exists {
 						continue
 					}
 				}
 				if outputIfCRDName != "" {
-					outputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, outputIfCRDName)
+					outputIfLogicalName, _, exists = sp.IPNet.GetPodCustomIfNames(
+						pod.ID.Namespace, pod.ID.Name, outputIfCRDName)
 					if !exists {
 						continue
 					}

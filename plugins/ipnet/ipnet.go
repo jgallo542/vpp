@@ -336,7 +336,8 @@ func (n *IPNet) GetPodByIf(ifName string) (podNamespace string, podName string, 
 
 // GetPodIfNames looks up logical interface names that correspond to the interfaces
 // associated with the given local pod name + namespace.
-func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string, exists bool) {
+func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, linuxIfName, loopIfName string,
+	exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := n.PodManager.GetLocalPods()[podID]
@@ -359,7 +360,8 @@ func (n *IPNet) GetPodIfNames(podNamespace string, podName string) (vppIfName, l
 
 // GetPodCustomIfNames looks up logical interface name that corresponds to the custom interface
 // with specified name and type associated with the given local pod name + namespace.
-func (n *IPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string, linuxIfName string, exists bool) {
+func (n *IPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string, linuxIfName string,
+	exists bool) {
 	// check that the pod is locally deployed
 	podID := podmodel.ID{Name: podName, Namespace: podNamespace}
 	pod, exists := n.PodManager.GetLocalPods()[podID]

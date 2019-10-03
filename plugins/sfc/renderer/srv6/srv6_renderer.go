@@ -203,7 +203,8 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		return config, errors.New("can't create sfc chain configuration due to missing chain information")
 	}
 	if len(sfc.Chain) < 2 {
-		return config, errors.New("can't create sfc chain configuration due to missing information on start and end chain links (chain has less than 2 links)")
+		return config, errors.New("can't create sfc chain configuration due to missing information " +
+			"on start and end chain links (chain has less than 2 links)")
 	}
 	if len(sfc.Chain) == 2 {
 		rndr.Log.Warnf("sfc chain %v doesn't have inner links, it has only start and end links", sfc.Name)
@@ -215,7 +216,8 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		return config, errors.Wrapf(err, "can't compute paths for SFC chain with name %v", sfc.Name)
 	}
 
-	// creating steering and policy (we will install SRv6 components in the same order as packet will go through SFC chain)
+	// creating steering and policy (we will install SRv6 components
+	// in the same order as packet will go through SFC chain)
 	startLocation := remoteLocation
 	localStartPods := rndr.localPods(sfc.Chain[0])
 	if len(localStartPods) > 0 { // no local start pods = no steering to SFC (-> also no policy)
@@ -240,20 +242,25 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 				if pod.Local {
 					podIPNet := rndr.IPAM.GetPodIP(pod.ID) // pod IP already allocated (checked in path creation)
 					if i == len(path)-1 {                  // end link
-						if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
+						if packetLocation == mainVRFLocation || packetLocation == remoteLocation {
+							// remote packet will arrive in mainVRF -> packet is in mainVRF
 							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()), config)
 							packetLocation = podVRFLocation
 						}
 						if err := rndr.createEndLinkLocalsid(sfc, podIPNet.IP.To16(), config, pod); err != nil {
-							return config, errors.Wrapf(err, "can't create end link local sid (pod %v) for sfc chain %v", pod.ID, sfc.Name)
+							return config, errors.Wrapf(err, "can't create end link local sid "+
+								"(pod %v) for sfc chain %v", pod.ID, sfc.Name)
 						}
 					} else { // inner link
-						if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
-							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()), config)
+						if packetLocation == mainVRFLocation || packetLocation == remoteLocation {
+							// remote packet will arrive in mainVRF -> packet is in mainVRF
+							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name,
+								podIPNet.IP.To16()), config)
 							packetLocation = podVRFLocation
 						}
 						if err := rndr.createInnerLinkLocalsids(sfc, pod, podIPNet.IP.To16(), config); err != nil {
-							return config, errors.Wrapf(err, "can't create inner link local sid (pod %v) for sfc chain %v", pod.ID, sfc.Name)
+							return config, errors.Wrapf(err, "can't create inner link local sid (pod %v) "+
+								"for sfc chain %v", pod.ID, sfc.Name)
 						}
 						if rndr.endPointType(sfc) == l2DX2Endpoint || rndr.endPointType(sfc) == l3Dx4Endpoint {
 							// proxy leaving packets check main table instead of pod vrf table // TODO bug?
@@ -265,13 +272,16 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 					if packetLocation == podVRFLocation {
 						otherNodeIP, _, err := rndr.IPAM.NodeIPAddress(pod.NodeID)
 						if err != nil {
-							return config, errors.Wrapf(err, "cant create route from pod VRF to main VRF to achieve route "+
-								"between local and remote sibling SFC links due to unability to generate node IP address from pod ID  %v", pod.NodeID)
+							return config, errors.Wrapf(err, "cant create route from pod VRF to main VRF "+
+								"to achieve route between local and remote sibling SFC links due to unability to "+
+								"generate node IP address from pod ID  %v", pod.NodeID)
 						}
-						rndr.createRouteToMainVrf(rndr.IPAM.SidForServiceNodeLocalsid(otherNodeIP), config) // TODO rename SidForServiceNodeLocalsid and related config stuff to reflect usage in SFC
+						// TODO rename SidForServiceNodeLocalsid and related config stuff to reflect usage in SFC
+						rndr.createRouteToMainVrf(rndr.IPAM.SidForServiceNodeLocalsid(otherNodeIP), config)
 					}
-					// NOTE: further routing to intermediate Localsid (Localsid that ends segment that only transports packet to another node) is configured in ipnet package
-					// -> no need to add routing out of node here
+					// NOTE: further routing to intermediate Localsid (Localsid that ends segment that only
+					// transports packet to another node) is configured in ipnet package-> no need to add
+					// routing out of node here
 					packetLocation = remoteLocation
 				}
 			case *renderer.InterfaceSF:
@@ -368,8 +378,10 @@ func (rndr *Renderer) filterOnlyUsableServiceInstances(sfc *renderer.ContivSFC) 
 					continue
 				}
 
-				_, _, err := rndr.IPAM.NodeIPAddress(pod.NodeID) // needed for cross-node SID referencing
-				if err != nil {                                  // NOTE: this restriction is actually more strict than needed
+				// needed for cross-node SID referencing
+				// NOTE: this restriction is actually more strict than needed
+				_, _, err := rndr.IPAM.NodeIPAddress(pod.NodeID)
+				if err != nil {
 					rndr.Log.Warnf("excluding pod %v (selected for link %s in SFC chain %v) from SFC "+
 						"chain creation because there is no IP address assigned to the node of this pod "+
 						"(nodeID=%v)", pod.ID.String(), link.String(), sfc.Name, pod.NodeID)
@@ -395,7 +407,8 @@ func (rndr *Renderer) toStringSlice(chain []*renderer.ServiceFunction) []string 
 	return result
 }
 
-func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP, config controller.KeyValuePairs) error {
+func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP,
+	config controller.KeyValuePairs) error {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, servicePodIP).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
@@ -423,10 +436,12 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	return nil
 }
 
-func (rndr *Renderer) setARPForPodInputInterface(podIPNet *net.IPNet, config controller.KeyValuePairs, pod *renderer.PodSF) error {
+func (rndr *Renderer) setARPForPodInputInterface(podIPNet *net.IPNet, config controller.KeyValuePairs,
+	pod *renderer.PodSF) error {
 	macAddress, err := rndr.podCustomIFPhysAddress(pod, pod.InputInterfaceConfigName)
 	if err != nil {
-		return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v on pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
+		return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v on "+
+			"pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
 	}
 	arpTable := &vpp_l3.ARPEntry{
 		Interface:   pod.InputInterface,
@@ -450,12 +465,14 @@ func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName s
 	}
 	linuxInterface, ok := val.(*linux_interfaces.Interface)
 	if !ok {
-		return "", errors.Errorf("Retrieved data for custom interface for pod %v have bad type (%+v)", pod.ID, val)
+		return "", errors.Errorf("Retrieved data for custom interface for pod %v have bad type (%+v)",
+			pod.ID, val)
 	}
 	return linuxInterface.PhysAddress, nil
 }
 
-func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddress net.IP, config controller.KeyValuePairs, pod *renderer.PodSF) error {
+func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddress net.IP,
+	config controller.KeyValuePairs, pod *renderer.PodSF) error {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: rndr.ContivConf.GetRoutingConfig().PodVRFID,
@@ -497,14 +514,17 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, endLinkAddr
 }
 
 func (rndr *Renderer) createRouteToPodVrf(steeredIP net.IP, config controller.KeyValuePairs) {
-	rndr.createRouteBetweenVrfTables(rndr.ContivConf.GetRoutingConfig().MainVRFID, rndr.ContivConf.GetRoutingConfig().PodVRFID, steeredIP, config)
+	rndr.createRouteBetweenVrfTables(rndr.ContivConf.GetRoutingConfig().MainVRFID,
+		rndr.ContivConf.GetRoutingConfig().PodVRFID, steeredIP, config)
 }
 
 func (rndr *Renderer) createRouteToMainVrf(steeredIP net.IP, config controller.KeyValuePairs) {
-	rndr.createRouteBetweenVrfTables(rndr.ContivConf.GetRoutingConfig().PodVRFID, rndr.ContivConf.GetRoutingConfig().MainVRFID, steeredIP, config)
+	rndr.createRouteBetweenVrfTables(rndr.ContivConf.GetRoutingConfig().PodVRFID,
+		rndr.ContivConf.GetRoutingConfig().MainVRFID, steeredIP, config)
 }
 
-func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steeredIP net.IP, config controller.KeyValuePairs) {
+func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steeredIP net.IP,
+	config controller.KeyValuePairs) {
 	route := &vpp_l3.Route{
 		Type:        vpp_l3.Route_INTER_VRF,
 		DstNetwork:  steeredIP.String() + ipv6PodSidPrefix,
@@ -534,7 +554,8 @@ func (rndr *Renderer) createPolicy(paths [][]ServiceFunctionSelectable, sfc *ren
 			if lastSegmentNode != nodeID { // move to another node
 				nodeIP, _, err := rndr.IPAM.NodeIPAddress(nodeID)
 				if err != nil {
-					return errors.Wrapf(err, "unable to create node-to-node transportation segment due to failure in generatation of node IP address for node id  %v", nodeID)
+					return errors.Wrapf(err, "unable to create node-to-node transportation segment due to "+
+						"failure in generatation of node IP address for node id  %v", nodeID)
 				}
 				segments = append(segments, rndr.IPAM.SidForServiceNodeLocalsid(nodeIP.To16()).String())
 				lastSegmentNode = nodeID
@@ -542,7 +563,8 @@ func (rndr *Renderer) createPolicy(paths [][]ServiceFunctionSelectable, sfc *ren
 			if i == len(path)-1 { // end link
 				segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(podIPNet.IP.To16()).String())
 			} else { // inner link
-				segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, podIPNet.IP.To16()).String())
+				segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name,
+					podIPNet.IP.To16()).String())
 			}
 		}
 
@@ -581,7 +603,8 @@ func (rndr *Renderer) infoAboutSelectable(sfSelectable ServiceFunctionSelectable
 	}
 }
 
-func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP, config controller.KeyValuePairs) {
+func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP,
+	config controller.KeyValuePairs) {
 	switch rndr.endPointType(sfc) {
 	case l2DX2Endpoint:
 		for _, startPod := range localStartPods {

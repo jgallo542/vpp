@@ -101,7 +101,8 @@ type IPAM struct {
 type podNetworkInfo struct {
 	// IP subnet from which individual POD networks are allocated, this is subnet for all PODs across all nodes
 	podSubnetAllNodes *net.IPNet
-	// IP subnet prefix for all PODs on this node (given by nodeID), podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
+	// IP subnet prefix for all PODs on this node (given by nodeID),
+	// podSubnetAllNodes + nodeID ==<computation>==> podSubnetThisNode
 	podSubnetThisNode *net.IPNet
 	// gateway IP address for PODs on this node (given by nodeID)
 	podSubnetGatewayIP net.IP
@@ -355,7 +356,8 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 }
 
 // initializePodNetwork initializes pod network -related variables.
-func (i *IPAM) initializePodNetwork(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets, nodeID uint32) (err error) {
+func (i *IPAM) initializePodNetwork(kubeStateData controller.KubeStateData, config *contivconf.CustomIPAMSubnets,
+	nodeID uint32) (err error) {
 
 	// init pod IP maps
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
@@ -417,7 +419,8 @@ func (i *IPAM) initializeCustomPodNetwork(name string, subnetCIDR string, subnet
 		i.Log.Errorf("unable to parse network %s subnet CIDR: %v: %v", name, subnetCIDR, err)
 		return err
 	}
-	podNw.podSubnetThisNode, err = dissectSubnetForNode(podNw.podSubnetAllNodes, uint8(subnetOneNodePrefix), i.NodeSync.GetNodeID())
+	podNw.podSubnetThisNode, err = dissectSubnetForNode(podNw.podSubnetAllNodes, uint8(subnetOneNodePrefix),
+		i.NodeSync.GetNodeID())
 	podNw.podSubnetGatewayIP, err = cidr.Host(podNw.podSubnetThisNode, podGatewaySeqID)
 	if err != nil {
 		return err
@@ -474,7 +477,8 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 					i.remotePodToIP[podID].customIfIPs = make(map[string]net.IP)
 					for _, customAlloc := range newIPAlloc.CustomInterfaces {
 						podIPAddress := net.ParseIP(customAlloc.IpAddress)
-						i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
+						id := customIfID(customAlloc.Name, customAlloc.Network)
+						i.remotePodToIP[podID].customIfIPs[id] = podIPAddress
 					}
 				}
 			}
@@ -739,7 +743,8 @@ func (i *IPAM) AllocatePodIP(podID podmodel.ID, ipamType string, ipamData string
 }
 
 // AllocatePodCustomIfIP tries to allocate custom IP address for the given interface of a given pod.
-func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, isServiceEndpoint bool) (net.IP, error) {
+func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string,
+	isServiceEndpoint bool) (net.IP, error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
@@ -783,7 +788,8 @@ func (i *IPAM) AllocatePodCustomIfIP(podID podmodel.ID, ifName, network string, 
 }
 
 // persistCustomIfIPAllocation persists custom interface IP allocation into ETCD.
-func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network string, ip net.IP, isServiceEndpoint bool) error {
+func (i *IPAM) persistCustomIfIPAllocation(podID podmodel.ID, ifName, network string, ip net.IP,
+	isServiceEndpoint bool) error {
 	key := ipalloc.Key(podID.Name, podID.Namespace)
 	allocation := &ipalloc.CustomIPAllocation{}
 
@@ -1057,9 +1063,9 @@ func (i *IPAM) BsidForServicePolicy(serviceIPs []net.IP) net.IP {
 	return i.computeSID(ip, i.ContivConf.GetIPAMConfig().SRv6Settings.ServicePolicyBSIDSubnetCIDR)
 }
 
-// SidForServiceHostLocalsid creates a valid SRv6 SID for service locasid leading to host on the current node. Created SID
-// doesn't depend on anything and is the same for each node, because there is only one way how to get to host in each
-// node and localsid have local significance (their sid don't have to be globally unique)
+// SidForServiceHostLocalsid creates a valid SRv6 SID for service locasid leading to host on the current node.
+// Created SID doesn't depend on anything and is the same for each node, because there is only one way how to
+// get to host in each node and localsid have local significance (their sid don't have to be globally unique)
 func (i *IPAM) SidForServiceHostLocalsid() net.IP {
 	return i.computeSID(net.ParseIP("::1"), i.ContivConf.GetIPAMConfig().SRv6Settings.ServiceHostLocalSIDSubnetCIDR)
 }
@@ -1082,19 +1088,24 @@ func (i *IPAM) SidForNodeToNodeHostLocalsid(nodeIP net.IP) net.IP {
 	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostLocalSIDSubnetCIDR)
 }
 
-// SidForServiceNodeLocalsid creates a valid SRv6 SID for service locasid serving as intermediate step in policy segment list.
+// SidForServiceNodeLocalsid creates a valid SRv6 SID for service locasid serving as intermediate step in
+// policy segment list.
 func (i *IPAM) SidForServiceNodeLocalsid(nodeIP net.IP) net.IP {
 	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.ServiceNodeLocalSIDSubnetCIDR)
 }
 
-// BsidForNodeToNodePodPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to pod VRF table
+// BsidForNodeToNodePodPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and
+// routes traffic to pod VRF table
 func (i *IPAM) BsidForNodeToNodePodPolicy(nodeIP net.IP) net.IP {
-	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR) // bsid = binding sid -> using the same util method
+	// bsid = binding sid -> using the same util method
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodePodPolicySIDSubnetCIDR)
 }
 
-// BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and routes traffic to main VRF table
+// BsidForNodeToNodeHostPolicy creates a valid SRv6 SID for policy that is part of node-to-node Srv6 tunnel and
+// routes traffic to main VRF table
 func (i *IPAM) BsidForNodeToNodeHostPolicy(nodeIP net.IP) net.IP {
-	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR) // bsid = binding sid -> using the same util method
+	// bsid = binding sid -> using the same util method
+	return i.computeSID(nodeIP, i.ContivConf.GetIPAMConfig().SRv6Settings.NodeToNodeHostPolicySIDSubnetCIDR)
 }
 
 // BsidForSFCPolicy creates a valid SRv6 SID for policy used for SFC
@@ -1123,7 +1134,8 @@ func (i *IPAM) SidForSFCServiceFunctionLocalsid(sfcName string, serviceFunctionP
 	return i.combineMultipleIPAddresses(
 		newIPWithPositionableMaskFromIPNet(prefix),
 		newIPWithPositionableMask(sfcID, prefixMaskSize, sfcIDMaskLength),
-		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize+sfcIDMaskLength, 128-prefixMaskSize-sfcIDMaskLength))
+		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize+sfcIDMaskLength,
+			128-prefixMaskSize-sfcIDMaskLength))
 }
 
 // SidForSFCEndLocalsid creates a valid SRv6 SID for locasid of segment that is the last link of SFC chain
@@ -1138,14 +1150,16 @@ func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
 		newIPWithPositionableMask(serviceFunctionPodIP, prefixMaskSize, 128-prefixMaskSize))
 }
 
-// ipWithPositionableMask holds IP address with positionable mask that defines what part of IP address should be used
-// in IP address combination functionality. The net.IPNet could not be used as it's mask start always on first bit of IP address.
+// ipWithPositionableMask holds IP address with positionable mask that defines what part of IP address should
+// be used in IP address combination functionality. The net.IPNet could not be used as it's mask start always
+// on first bit of IP address.
 type ipWithPositionableMask struct {
 	ip               net.IP
 	positionableMask net.IPMask
 }
 
-// newIPWithPositionableMaskFromIPNet creates ipWithPositionableMask with IP and mask from given <ipNet> (mask is from start of IP address)
+// newIPWithPositionableMaskFromIPNet creates ipWithPositionableMask with IP and mask from given <ipNet> (mask
+// is from start of IP address)
 func newIPWithPositionableMaskFromIPNet(ipNet *net.IPNet) *ipWithPositionableMask {
 	return &ipWithPositionableMask{
 		ip:               ipNet.IP,
@@ -1153,8 +1167,8 @@ func newIPWithPositionableMaskFromIPNet(ipNet *net.IPNet) *ipWithPositionableMas
 	}
 }
 
-// newIPWithPositionableMask creates ipWithPositionableMask with given IP address and mask that is zeroed except of one
-// sequence of ones starting at <maskStartBit>-th bit and having length <maskBitLength>
+// newIPWithPositionableMask creates ipWithPositionableMask with given IP address and mask that is zeroed except
+// of one sequence of ones starting at <maskStartBit>-th bit and having length <maskBitLength>
 func newIPWithPositionableMask(ip net.IP, maskStartBit int, maskBitLength int) *ipWithPositionableMask {
 	leftToMask := net.CIDRMask(maskStartBit, 128)
 	negatedRightToMask := net.CIDRMask(maskStartBit+maskBitLength, 128)
@@ -1169,15 +1183,18 @@ func newIPWithPositionableMask(ip net.IP, maskStartBit int, maskBitLength int) *
 	}
 }
 
-// combineMultipleIPAddresses combines multiple addresses together into one IP address. The combining IP addresses have
-// additional information(positionableMask) that is saying what part of given combining IP address should be used in
-// combined IP address. It is expected that positionableMasks from all ipAddresses are not overlapping.
+// combineMultipleIPAddresses combines multiple addresses together into one IP address. The combining
+// IP addresses have additional information(positionableMask) that is saying what part of given combining
+// IP address should be used in combined IP address. It is expected that positionableMasks from all ipAddresses
+// are not overlapping.
 func (i *IPAM) combineMultipleIPAddresses(ipAddresses ...*ipWithPositionableMask) net.IP {
 	result := net.IP(net.CIDRMask(128, 128))
 	for _, ipWithPositionableMask := range ipAddresses {
 		for i := range result {
-			result[i] = (result[i] & ^ipWithPositionableMask.positionableMask[i]) | // copy/paste parts that won't be changed by applying this ipWithPositionableMask
-				(ipWithPositionableMask.ip[i] & ipWithPositionableMask.positionableMask[i]) // apply part from this ipWithPositionableMask to result IP address
+			// copy/paste parts that won't be changed by applying this ipWithPositionableMask
+			result[i] = (result[i] & ^ipWithPositionableMask.positionableMask[i]) |
+				// apply part from this ipWithPositionableMask to result IP address
+				(ipWithPositionableMask.ip[i] & ipWithPositionableMask.positionableMask[i])
 		}
 	}
 	return result
@@ -1209,7 +1226,8 @@ func (i *IPAM) Close() error {
 
 // dissectSubnetForNode dissects a smaller chunk from a given subnet to be used
 // exclusively by the node of the given ID.
-func dissectSubnetForNode(subnetCIDR *net.IPNet, oneNodePrefixLen uint8, nodeID uint32) (nodeSubnet *net.IPNet, err error) {
+func dissectSubnetForNode(subnetCIDR *net.IPNet, oneNodePrefixLen uint8, nodeID uint32) (nodeSubnet *net.IPNet,
+	err error) {
 	// checking correct prefix sizes
 	subnetPrefixLen, _ := subnetCIDR.Mask.Size()
 	if oneNodePrefixLen <= uint8(subnetPrefixLen) {

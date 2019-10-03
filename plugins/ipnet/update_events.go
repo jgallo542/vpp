@@ -83,7 +83,8 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 
 		case podmodel.PodKeyword:
 			var changes []string
-			if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport && n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
+			if n.ContivConf.GetRoutingConfig().NodeToNodeTransport == contivconf.SRv6Transport &&
+				n.ContivConf.GetRoutingConfig().UseDX6ForSrv6NodetoNodeTransport {
 				change, err := n.updateSrv6DX6NodeToNodeTunnel(ksChange, txn)
 				changes = append(changes, change)
 				if err != nil {
@@ -157,8 +158,10 @@ func (n *IPNet) Update(event controller.Event, txn controller.UpdateOperations) 
 	return "", nil
 }
 
-// updateSrv6DX6NodeToNodeTunnel updates ingress part of SRv6 node-to-node tunnel that leads directly to remote pod (DX6 end function)
-func (n *IPNet) updateSrv6DX6NodeToNodeTunnel(ksChange *controller.KubeStateChange, txn controller.UpdateOperations) (change string, err error) {
+// updateSrv6DX6NodeToNodeTunnel updates ingress part of SRv6 node-to-node tunnel
+// that leads directly to remote pod (DX6 end function)
+func (n *IPNet) updateSrv6DX6NodeToNodeTunnel(ksChange *controller.KubeStateChange,
+	txn controller.UpdateOperations) (change string, err error) {
 	// get pod with assigned IP address (for cases of just assigning or just removing IP address to/from pod)
 	var pod *podmodel.Pod
 	newPod, _ := ksChange.NewValue.(*podmodel.Pod)
@@ -174,18 +177,22 @@ func (n *IPNet) updateSrv6DX6NodeToNodeTunnel(ksChange *controller.KubeStateChan
 	}
 
 	// adding ingress for tunnel to remote pods
-	if _, isLocal := n.PodManager.GetLocalPods()[podmodel.GetID(pod)]; !isLocal { // ingress of tunnel to remote pod -> ignoring updates of local pods
+	if _, isLocal := n.PodManager.GetLocalPods()[podmodel.GetID(pod)]; !isLocal {
+		// ingress of tunnel to remote pod -> ignoring updates of local pods
 		config, err := n.srv6NodeToNodeDX6PodTunnelIngress(pod)
 		if err != nil {
-			return "", errors.Wrapf(err, "can't add SRv6 node-to-node tunnel crossconnecting to pod %+v", podmodel.GetID(pod))
+			return "", errors.Wrapf(err, "can't add SRv6 node-to-node tunnel crossconnecting to pod %+v",
+				podmodel.GetID(pod))
 		}
 		if n.isParsableIPAddressAdded(newPod, prevPod) { // addition of tunnel ingress
 			addToTxn(config, txn)
-			return "adding ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to remote pod)", nil
+			return "adding ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly " +
+				"to remote pod)", nil
 		}
 		// removal of tunnel ingress
 		controller.DeleteAll(txn, config)
-		return "removing ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to remote pod)", nil
+		return "removing ingress configuration for SRv6 node-to-node tunnel (DX6 crossconnecting directly to " +
+			"remote pod)", nil
 	}
 	return "", nil
 }
@@ -196,7 +203,8 @@ func (n *IPNet) isParsableIPAddressAdded(podWithNewState *podmodel.Pod, podWithP
 		(podWithPrevState == nil || net.ParseIP(podWithPrevState.IpAddress) == nil)
 }
 
-// pushPodCustomIfUpdateEventIfNeeded pushes PodCustomIfUpdate event to event loop when pod KubeState changes in specific manner. Otherwise it does nothing
+// pushPodCustomIfUpdateEventIfNeeded pushes PodCustomIfUpdate event to event loop when pod KubeState changes
+// in specific manner. Otherwise it does nothing
 func (n *IPNet) pushPodCustomIfUpdateEventIfNeeded(ksChange *controller.KubeStateChange) error {
 	if ksChange.NewValue != nil {
 		pod := ksChange.NewValue.(*podmodel.Pod)
@@ -393,7 +401,8 @@ func (n *IPNet) updateCustomNetwork(nw *customnetmodel.CustomNetwork, txn contro
 }
 
 // processNodeUpdateEvent reacts to an update of *another* node.
-func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string, err error) {
+func (n *IPNet) processNodeUpdateEvent(nodeUpdate *nodesync.NodeUpdate, txn controller.UpdateOperations) (change string,
+	err error) {
 	// read the other node ID
 	var otherNodeID uint32
 	if nodeUpdate.NewState != nil {
