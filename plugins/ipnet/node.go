@@ -16,16 +16,16 @@ package ipnet
 
 import (
 	"fmt"
-	"github.com/contiv/vpp/plugins/idalloc/idallocation"
-	"github.com/contiv/vpp/plugins/podmanager"
 	"net"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
+	"github.com/contiv/vpp/plugins/idalloc/idallocation"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
 	"github.com/contiv/vpp/plugins/nodesync"
+	"github.com/contiv/vpp/plugins/podmanager"
 	"github.com/gogo/protobuf/proto"
 	"github.com/ligato/cn-infra/idxmap"
 	"github.com/ligato/vpp-agent/api/models/vpp/interfaces"
@@ -347,7 +347,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 			vppIfName := nodeIf.VppInterfaceName
 			vrf := n.ContivConf.GetRoutingConfig().MainVRFID
 			if n.isL3Network(extIf.Network) {
-				vrf, _ = n.getOrAllocateVrfID(extIf.Network)
+				vrf, _ = n.GetOrAllocateVrfID(extIf.Network)
 			}
 			if nodeIf.Vlan == 0 {
 				// standard interface config
@@ -712,7 +712,7 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 	}
 	if nwConfig.Type == customnetmodel.CustomNetwork_L3 {
 		// get / allocate a VRF ID
-		vrfID, err := n.getOrAllocateVrfID(nwConfig.Name)
+		vrfID, err := n.GetOrAllocateVrfID(nwConfig.Name)
 		if err != nil {
 			return config, err
 		}
@@ -881,9 +881,9 @@ func (n *IPNet) releaseVxlanVNI(networkName string) (err error) {
 	return n.IDAlloc.ReleaseID(VxlanVniPoolName, networkName)
 }
 
-// getOrAllocateVrfID returns the allocated VRF ID number for the given network.
+// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
 // Allocates a new VRF ID if not already allocated.
-func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
+func (n *IPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 	// default pod network does not need any allocation
 	if n.isDefaultPodNetwork(networkName) {
 		return n.ContivConf.GetRoutingConfig().PodVRFID, nil
@@ -1381,7 +1381,7 @@ func (n *IPNet) routeToOtherNodeNetworks(network string, destNetwork *net.IPNet,
 		if n.isDefaultPodNetwork(network) {
 			route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 		} else {
-			route.VrfId, _ = n.getOrAllocateVrfID(network)
+			route.VrfId, _ = n.GetOrAllocateVrfID(network)
 		}
 	}
 	key = models.Key(route)

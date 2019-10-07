@@ -91,6 +91,10 @@ type API interface {
 	// Returns nil if the pod does not have allocated custom interface IP address.
 	GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.IPNet
 
+	// GetPodCustomIfNetworkName returns the name of custom network which should contain given
+	// pod custom interface or error otherwise. This supports both type of pods, remote and local
+	GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error)
+
 	// GetPodFromIP returns the pod information related to the allocated pod IP.
 	// found is false if the provided IP address has not been allocated to any local pod.
 	GetPodFromIP(podIP net.IP) (podID podmodel.ID, found bool)

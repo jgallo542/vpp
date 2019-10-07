@@ -40,6 +40,10 @@ type API interface {
 	// GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.
 	GetExternalIfName(extIfName string, vlan uint32) (ifName string)
 
+	// GetOrAllocateVrfID returns the allocated VRF ID number for the given custom/default network.
+	// Allocates a new VRF ID if not already allocated.
+	GetOrAllocateVrfID(networkName string) (vrf uint32, err error)
+
 	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
