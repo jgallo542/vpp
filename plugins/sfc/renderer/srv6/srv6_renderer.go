@@ -320,12 +320,12 @@ func (rndr *Renderer) checkCustomNetworkIntegrity(paths [][]ServiceFunctionSelec
 			switch selectable := sfSelectable.(type) {
 			case *renderer.PodSF:
 				customNetwork, err = rndr.checkNetworkForPodInterface(selectable.ID,
-					selectable.InputInterface, customNetwork)
+					selectable.InputInterfaceConfigName, customNetwork)
 				if err != nil {
 					return "", err
 				}
 				customNetwork, err = rndr.checkNetworkForPodInterface(selectable.ID,
-					selectable.OutputInterface, customNetwork)
+					selectable.OutputInterfaceConfigName, customNetwork)
 				if err != nil {
 					return "", err
 				}
