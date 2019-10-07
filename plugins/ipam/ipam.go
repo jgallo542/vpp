@@ -34,7 +34,6 @@ import (
 	controller "github.com/contiv/vpp/plugins/controller/api"
 	customnetmodel "github.com/contiv/vpp/plugins/crd/handler/customnetwork/model"
 	"github.com/contiv/vpp/plugins/ipam/ipalloc"
-	"github.com/contiv/vpp/plugins/ipnet"
 	"github.com/contiv/vpp/plugins/ksr"
 	nodemodel "github.com/contiv/vpp/plugins/ksr/model/node"
 	podmodel "github.com/contiv/vpp/plugins/ksr/model/pod"
@@ -1381,7 +1380,7 @@ func parseCustomIfID(id string) (ifName, network string, err error) {
 		return "", "", errors.Errorf("can't parse customIfID %v", id)
 	}
 	if len(split) == 1 {
-		return split[0], ipnet.DefaultPodNetworkName, nil
+		return split[0], "default" /* = ipnet.DefaultPodNetworkName */, nil
 	}
 	return split[0], split[1], nil
 }
