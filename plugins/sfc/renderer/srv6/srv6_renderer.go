@@ -162,9 +162,10 @@ const (
 	l3Dx6Endpoint
 )
 
-func (rndr *Renderer) getEndLinkCustomIfIPNet(sfc *renderer.ContivSFC) (endLinkCustomIfIPNet *net.IPNet) {
+func (rndr *Renderer) getEndLinkCustomIfIPNet(sfc *renderer.ContivSFC,
+	customNetworkName string) (endLinkCustomIfIPNet *net.IPNet) {
 	endLinkPod := sfc.Chain[len(sfc.Chain)-1].Pods[0]
-	return rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterfaceConfigName, sfc.Network)
+	return rndr.IPAM.GetPodCustomIfIP(endLinkPod.ID, endLinkPod.InputInterfaceConfigName, customNetworkName)
 }
 
 // isIPv6 returns true if the IP address is an IPv6 address, false otherwise.
@@ -175,9 +176,9 @@ func isIPv6(ip net.IP) bool {
 	return strings.Contains(ip.String(), ":")
 }
 
-func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC) int {
+func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC, customNetworkName string) int {
 	// if end pond IP address is nil, then we use l2endpoint
-	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+	endIPNet := rndr.getEndLinkCustomIfIPNet(sfc, customNetworkName)
 	if endIPNet == nil {
 		return l2DX2Endpoint
 	}
@@ -234,7 +235,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 	localStartPods := rndr.localPods(sfc.Chain[0])
 	if len(localStartPods) > 0 { // no local start pods = no steering to SFC (-> also no policy)
 		bsid := rndr.IPAM.BsidForSFCPolicy(sfc.Name)
-		rndr.createSteerings(localStartPods, sfc, bsid, podVRFID, config)
+		rndr.createSteerings(localStartPods, sfc, bsid, customNetworkName, podVRFID, config)
 		if err := rndr.createPolicy(paths, sfc, bsid, localStartPods[0].NodeID, config); err != nil {
 			return config, errors.Wrapf(err, "can't create SRv6 policy for SFC chain with name %v", sfc.Name)
 		}
@@ -260,8 +261,8 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 								podVRFID, config)
 							packetLocation = podVRFLocation
 						}
-						if err := rndr.createEndLinkLocalsid(sfc, podVRFID, podIPNet.IP.To16(),
-							config, pod); err != nil {
+						if err := rndr.createEndLinkLocalsid(sfc, customNetworkName, podVRFID,
+							podIPNet.IP.To16(), config, pod); err != nil {
 							return config, errors.Wrapf(err, "can't create end link local sid "+
 								"(pod %v) for sfc chain %v", pod.ID, sfc.Name)
 						}
@@ -273,11 +274,12 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 							packetLocation = podVRFLocation
 						}
 						if err := rndr.createInnerLinkLocalsids(sfc, pod, podIPNet.IP.To16(),
-							podVRFID, config); err != nil {
+							customNetworkName, podVRFID, config); err != nil {
 							return config, errors.Wrapf(err, "can't create inner link local sid (pod %v) "+
 								"for sfc chain %v", pod.ID, sfc.Name)
 						}
-						if rndr.endPointType(sfc) == l2DX2Endpoint || rndr.endPointType(sfc) == l3Dx4Endpoint {
+						endpointType := rndr.endPointType(sfc, customNetworkName)
+						if endpointType == l2DX2Endpoint || endpointType == l3Dx4Endpoint {
 							// proxy leaving packets check main table instead of pod vrf table // TODO bug?
 							// (l2DX2Endpoint -> L2 SR-unware service, l3DX4Endpoint -> L3 IPv4 SR-unware service)
 							packetLocation = mainVRFLocation
@@ -472,20 +474,20 @@ func (rndr *Renderer) toStringSlice(chain []*renderer.ServiceFunction) []string 
 }
 
 func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP,
-	podVRFID uint32, config controller.KeyValuePairs) error {
+	customNetworkName string, podVRFID uint32, config controller.KeyValuePairs) error {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, servicePodIP).String(),
 		InstallationVrfId: podVRFID,
 	}
 
-	switch rndr.endPointType(sfc) {
+	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
 			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
 		}}
 	case l3Dx4Endpoint, l3Dx6Endpoint:
-		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterfaceConfigName, sfc.Network)
+		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterfaceConfigName, customNetworkName)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress:  podInputIfIPNet.IP.String(),
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
@@ -535,14 +537,14 @@ func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName s
 	return linuxInterface.PhysAddress, nil
 }
 
-func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, podVRFID uint32, endLinkAddress net.IP,
-	config controller.KeyValuePairs, pod *renderer.PodSF) error {
+func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetworkName string, podVRFID uint32,
+	endLinkAddress net.IP, config controller.KeyValuePairs, pod *renderer.PodSF) error {
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
 		InstallationVrfId: podVRFID,
 	}
 
-	switch rndr.endPointType(sfc) {
+	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX2{
 			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
@@ -550,7 +552,7 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, podVRFID ui
 			},
 		}
 	case l3Dx4Endpoint:
-		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc, customNetworkName)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
 			EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
 				NextHop:           endIPNet.IP.String(),
@@ -561,7 +563,7 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, podVRFID ui
 			return errors.Wrapf(err, "can't set arp for end pod %v", pod.ID)
 		}
 	case l3Dx6Endpoint:
-		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc, customNetworkName)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
 			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
 				NextHop:           endIPNet.IP.String(),
@@ -666,8 +668,8 @@ func (rndr *Renderer) infoAboutSelectable(sfSelectable ServiceFunctionSelectable
 }
 
 func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *renderer.ContivSFC, bsid net.IP,
-	podVRFID uint32, config controller.KeyValuePairs) {
-	switch rndr.endPointType(sfc) {
+	customNetworkName string, podVRFID uint32, config controller.KeyValuePairs) {
+	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
 		for _, startPod := range localStartPods {
 			steering := &vpp_srv6.Steering{
@@ -685,7 +687,7 @@ func (rndr *Renderer) createSteerings(localStartPods []*renderer.PodSF, sfc *ren
 			config[models.Key(steering)] = steering
 		}
 	case l3Dx6Endpoint, l3Dx4Endpoint:
-		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc)
+		endIPNet := rndr.getEndLinkCustomIfIPNet(sfc, customNetworkName)
 		steering := &vpp_srv6.Steering{
 			Name: fmt.Sprintf("forK8sSFC-%s", sfc.Name),
 			PolicyRef: &vpp_srv6.Steering_PolicyBsid{
