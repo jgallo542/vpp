@@ -17,6 +17,7 @@ package ipnet
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/contiv/vpp/plugins/contivconf"
 	controller "github.com/contiv/vpp/plugins/controller/api"
@@ -80,10 +81,20 @@ const (
 
 // customNetworkInfo holds information about a custom network
 type customNetworkInfo struct {
-	config             *customnetmodel.CustomNetwork
-	localPods          map[string]*podmanager.LocalPod          // list of local pods in custom network
-	localExtInterfaces map[string]*extifmodel.ExternalInterface // list of local external interfaces in custom network
-	localInterfaces    []string                                 // list of local interfaces (pod + external) in custom network
+	config *customnetmodel.CustomNetwork
+	// list of local pods in custom network
+	localPods map[string]*podmanager.LocalPod
+	// list of local external interfaces in custom network
+	localExtInterfaces map[string]*extifmodel.ExternalInterface
+	// list of local interfaces (pod + external) in custom network
+	localInterfaces []string
+	// list of remote pods in custom network
+	remotePods map[string]*podmanager.Pod
+	// list of local external interfaces in custom network
+	remoteExtInterfaces map[string]*extifmodel.ExternalInterface
+	// list of remote interfaces (pod + external) in custom network (map[remote node ID]=list of interfaces
+	// for that remote node)
+	remoteInterfaces   map[uint32][]string
 	vniPoolInitialized bool
 	vrfPoolInitialized bool
 }
@@ -363,7 +374,8 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 			}
 			if !n.isDefaultPodNetwork(extIf.Network) && !n.isStubNetwork(extIf.Network) {
 				// post-configure interface in custom network
-				n.cacheCustomNetworkInterface(extIf.Network, nil, extIf, vppIfName, eventType != configDelete)
+				n.cacheCustomNetworkInterface(extIf.Network, nil, nil, extIf, nil,
+					vppIfName, "", n.NodeSync.GetNodeID(), eventType != configDelete)
 				if n.isL2Network(extIf.Network) {
 					bdKey, bd := n.l2CustomNwBridgeDomain(n.customNetworks[extIf.Network])
 					updateConfig[bdKey] = bd
@@ -680,9 +692,12 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 	nw := n.customNetworks[nwConfig.Name]
 	if nw == nil {
 		nw = &customNetworkInfo{
-			config:             nwConfig,
-			localPods:          map[string]*podmanager.LocalPod{},
-			localExtInterfaces: map[string]*extifmodel.ExternalInterface{},
+			config:              nwConfig,
+			localPods:           map[string]*podmanager.LocalPod{},
+			localExtInterfaces:  map[string]*extifmodel.ExternalInterface{},
+			remotePods:          map[string]*podmanager.Pod{},
+			remoteExtInterfaces: map[string]*extifmodel.ExternalInterface{},
+			remoteInterfaces:    map[uint32][]string{},
 		}
 		n.customNetworks[nwConfig.Name] = nw
 	} else {
@@ -814,36 +829,64 @@ func (n *IPNet) l2CustomNwBridgeDomain(nw *customNetworkInfo) (key string, confi
 }
 
 // cacheCustomNetworkInterface caches interface-related information for later use in custom networks.
-// Either pod or extIf argument can be null.
-func (n *IPNet) cacheCustomNetworkInterface(customNwName string, pod *podmanager.LocalPod, extIf *extifmodel.ExternalInterface,
-	ifName string, isAdd bool) {
+// The pod, extIf or ifName arguments can be null.
+func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podmanager.LocalPod,
+	remotePod *podmanager.Pod, localExtIf *extifmodel.ExternalInterface, remoteExtIf *extifmodel.ExternalInterface,
+	localIfName string, remoteIfName string, nodeID uint32, isAdd bool) {
 
 	// custom network is not known yet create one
 	nw := n.customNetworks[customNwName]
 	if nw == nil {
 		nw = &customNetworkInfo{
-			localPods:          map[string]*podmanager.LocalPod{},
-			localExtInterfaces: map[string]*extifmodel.ExternalInterface{},
+			localPods:           map[string]*podmanager.LocalPod{},
+			localExtInterfaces:  map[string]*extifmodel.ExternalInterface{},
+			remotePods:          map[string]*podmanager.Pod{},
+			remoteExtInterfaces: map[string]*extifmodel.ExternalInterface{},
+			remoteInterfaces:    map[uint32][]string{},
 		}
 		n.customNetworks[customNwName] = nw
 	}
 
 	// cache pods / interfaces belonging to this network
 	if isAdd {
-		nw.localInterfaces = sliceAppendIfNotExists(nw.localInterfaces, ifName)
-		if pod != nil {
-			nw.localPods[pod.ID.String()] = pod
+		if strings.TrimSpace(localIfName) != "" {
+			nw.localInterfaces = sliceAppendIfNotExists(nw.localInterfaces, localIfName)
 		}
-		if extIf != nil {
-			nw.localExtInterfaces[extIf.Name] = extIf
+		if strings.TrimSpace(remoteIfName) != "" {
+			nw.remoteInterfaces[nodeID] = sliceAppendIfNotExists(
+				nw.remoteInterfaces[nodeID], remoteIfName)
+		}
+		if localPod != nil {
+			nw.localPods[localPod.ID.String()] = localPod
+		}
+		if remotePod != nil {
+			nw.remotePods[remotePod.ID.String()] = remotePod
+		}
+		if localExtIf != nil {
+			nw.localExtInterfaces[localExtIf.Name] = localExtIf
+		}
+		if remoteExtIf != nil {
+			nw.remoteExtInterfaces[remoteExtIf.Name] = remoteExtIf
 		}
 	} else {
-		nw.localInterfaces = sliceRemove(nw.localInterfaces, ifName)
-		if pod != nil {
-			delete(nw.localPods, pod.ID.String())
+		if strings.TrimSpace(localIfName) != "" {
+			nw.localInterfaces = sliceRemove(nw.localInterfaces, localIfName)
 		}
-		if extIf != nil {
-			delete(nw.localExtInterfaces, extIf.Name)
+		if strings.TrimSpace(remoteIfName) != "" {
+			nw.remoteInterfaces[nodeID] = sliceRemove(
+				nw.remoteInterfaces[nodeID], remoteIfName)
+		}
+		if localPod != nil {
+			delete(nw.localPods, localPod.ID.String())
+		}
+		if remotePod != nil {
+			delete(nw.remotePods, remotePod.ID.String())
+		}
+		if localExtIf != nil {
+			delete(nw.localExtInterfaces, localExtIf.Name)
+		}
+		if remoteExtIf != nil {
+			delete(nw.remoteExtInterfaces, remoteExtIf.Name)
 		}
 	}
 }
@@ -1492,9 +1535,12 @@ func nodeHasIPAddress(node *nodesync.Node) bool {
 // clone creates a deep copy of customNetworkInfo.
 func (cn *customNetworkInfo) clone() (i *customNetworkInfo) {
 	res := &customNetworkInfo{
-		config:             proto.Clone(cn.config).(*customnetmodel.CustomNetwork),
-		localPods:          map[string]*podmanager.LocalPod{},
-		localExtInterfaces: map[string]*extifmodel.ExternalInterface{},
+		config:              proto.Clone(cn.config).(*customnetmodel.CustomNetwork),
+		localPods:           map[string]*podmanager.LocalPod{},
+		localExtInterfaces:  map[string]*extifmodel.ExternalInterface{},
+		remotePods:          map[string]*podmanager.Pod{},
+		remoteExtInterfaces: map[string]*extifmodel.ExternalInterface{},
+		remoteInterfaces:    map[uint32][]string{},
 	}
 	for k, v := range cn.localPods {
 		res.localPods[k] = v
@@ -1504,6 +1550,17 @@ func (cn *customNetworkInfo) clone() (i *customNetworkInfo) {
 	}
 	for _, v := range cn.localInterfaces {
 		cn.localInterfaces = append(cn.localInterfaces, v)
+	}
+	for k, v := range cn.remotePods {
+		res.remotePods[k] = v
+	}
+	for k, v := range cn.remoteExtInterfaces {
+		res.remoteExtInterfaces[k] = v
+	}
+	for k, v := range cn.remoteInterfaces {
+		newV := make([]string, len(v))
+		copy(newV, v)
+		res.remoteInterfaces[k] = newV
 	}
 	return res
 }

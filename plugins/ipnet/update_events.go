@@ -336,6 +336,7 @@ func (n *IPNet) deletePod(event *podmanager.DeletePod, txn controller.UpdateOper
 func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOperations,
 	eventType configEventType) (change string, err error) {
 
+	n.cacheRemoteCustomNetworkInterface(podID, eventType) // local pods are cached in podCustomIfsConfig
 	pod := n.PodManager.GetLocalPods()[podID]
 	config, updateConfig := n.podCustomIfsConfig(pod, eventType)
 
@@ -352,6 +353,34 @@ func (n *IPNet) updatePodCustomIfs(podID podmodel.ID, txn controller.UpdateOpera
 	controller.DeleteAll(txn, config)
 	controller.PutAll(txn, updateConfig)
 	return "un-configure custom pod interfaces", nil
+}
+
+// cacheRemoteCustomNetworkInterface puts custom network interfaces related information about remote pods to
+// custom network cache
+func (n *IPNet) cacheRemoteCustomNetworkInterface(podID podmodel.ID, eventType configEventType) {
+	if _, isLocalPod := n.PodManager.GetLocalPods()[podID]; !isLocalPod {
+		pod, hadPodMeta := n.PodManager.GetPods()[podID]
+		if !hadPodMeta {
+			return // no metadata = no custom network interfaces
+		}
+		for _, customIfStr := range getContivCustomIfs(pod.Annotations) {
+			customIf, err := parseCustomIfInfo(customIfStr)
+			if err != nil {
+				n.Log.Warnf("Error parsing custom interface definition (%v), skipping the interface %s "+
+					"for caching information", err, customIf)
+				continue
+			}
+			podIPAddress := net.ParseIP(pod.IPAddress)
+			nodeID, err := n.IPAM.NodeIDFromPodIP(podIPAddress)
+			if err != nil {
+				n.Log.Errorf("can't find out node ID from pod ID %v due to: %v (skipping custom network "+
+					"interfaces information caching for given pod)", podIPAddress, err)
+				continue
+			}
+			n.cacheCustomNetworkInterface(customIf.ifNet, nil, pod, nil,
+				nil, "", customIf.ifName, nodeID, eventType != configDelete)
+		}
+	}
 }
 
 // updateExternalIf adds or deletes external interface configuration.
