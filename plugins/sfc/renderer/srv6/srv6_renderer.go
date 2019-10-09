@@ -267,9 +267,19 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 			if sfSelectable.IsLocal() {
 				iPNet := sfSelectable.IPNet(rndr.IPAM) // pod IP already allocated (checked in path creation)
 				if i == len(path)-1 {                  // end link
-					_, isPod := sfSelectable.(*renderer.PodSF)
-					if isPod && (packetLocation == mainVRFLocation || packetLocation == remoteLocation) { // remote packet will arrive in mainVRF -> packet is in mainVRF
-						rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(iPNet.IP.To16()), config)
+					if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
+						switch sfSelectable := sfSelectable.(type) {
+						case *renderer.PodSF:
+							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(iPNet.IP.To16()), config)
+						case *renderer.InterfaceSF:
+							if extIfIPNet := sfSelectable.IPNet(rndr.IPAM); extIfIPNet != nil {
+								sid := rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(), extIfIPNet.IP.To16())
+								rndr.createRouteToPodVrf(sid, config)
+							} else {
+								sid := rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(), nil)
+								rndr.createRouteToPodVrf(sid, config)
+							}
+						}
 						packetLocation = podVRFLocation
 					}
 					if err := rndr.createEndLinkLocalsid(sfc, config, sfSelectable); err != nil {
