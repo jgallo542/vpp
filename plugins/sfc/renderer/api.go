@@ -225,8 +225,7 @@ func (iface InterfaceSF) NodeIdentifier() uint32 {
 }
 
 func (iface InterfaceSF) IPNet(i ipam.API) *net.IPNet {
-	ip := i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeIdentifier())
-	return &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}
+	return i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeIdentifier())
 }
 
 func (iface InterfaceSF) InInterface() string {

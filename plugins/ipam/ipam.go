@@ -89,7 +89,7 @@ type IPAM struct {
 	// counter denoting last assigned pod IP address
 	lastPodIPAssigned int
 	// IP information about external interfaces
-	extIfToIP map[string][]extIfIPInfo
+	extIfToIPNet map[string][]extIfIPInfo
 
 	/********** VSwitch related variables **********/
 	// IP subnet used across all nodes for VPP to host Linux stack interconnect
@@ -134,7 +134,7 @@ type podIPInfo struct {
 type extIfIPInfo struct {
 	nodeID       uint32
 	vppInterface string
-	ip           net.IP
+	ipNet        *net.IPNet
 }
 
 // String provides human-readable representation of podIPAllocation
@@ -155,7 +155,7 @@ func (i *podIPInfo) String() string {
 
 // String provides human-readable representation of extIfIPInfo
 func (e *extIfIPInfo) String() string {
-	return fmt.Sprintf("<nodeID=%s, vppInterface=%s, ip=%s>", e.nodeID, e.vppInterface, e.ip)
+	return fmt.Sprintf("<nodeID=%s, vppInterface=%s, ipNet=%s>", e.nodeID, e.vppInterface, e.ipNet)
 }
 
 // Deps lists dependencies of the IPAM plugin.
@@ -342,13 +342,13 @@ func (i *IPAM) Resync(event controller.Event, kubeStateData controller.KubeState
 		"hostInterconnectSubnetThisNode=%v, hostInterconnectIPInVpp=%v, hostInterconnectIPInLinux=%v, "+
 		"nodeInterconnectSubnet=%v, vxlanSubnet=%v, serviceCIDR=%v, "+
 		"assignedPodIPs=%+v, podToIP=%v, lastPodIPAssigned=%v, vxlanVNIs=%v "+
-		"remotePodToIP=%+v, extIfToIP=%+v",
+		"remotePodToIP=%+v, extIfToIPNet=%+v",
 		i.excludedIPsfromNodeSubnet, i.podSubnetAllNodes, i.podSubnetThisNode,
 		i.podSubnetGatewayIP, i.hostInterconnectSubnetAllNodes,
 		i.hostInterconnectSubnetThisNode, i.hostInterconnectIPInVpp, i.hostInterconnectIPInLinux,
 		i.nodeInterconnectSubnet, i.vxlanSubnet, i.serviceCIDR,
 		i.assignedPodIPs, i.podToIP, i.lastPodIPAssigned, i.vxlanVNIs,
-		i.remotePodToIP, i.extIfToIP)
+		i.remotePodToIP, i.extIfToIPNet)
 	return
 }
 
@@ -368,7 +368,7 @@ func (i *IPAM) initializePods(kubeStateData controller.KubeStateData, config *co
 	i.assignedPodIPs = make(map[string]*podIPAllocation)
 	i.remotePodToIP = make(map[podmodel.ID]*podIPInfo)
 	i.podToIP = make(map[podmodel.ID]*podIPInfo)
-	i.extIfToIP = make(map[string][]extIfIPInfo)
+	i.extIfToIPNet = make(map[string][]extIfIPInfo)
 
 	return nil
 }
@@ -892,14 +892,14 @@ func (i *IPAM) GetPodIP(podID podmodel.ID) *net.IPNet {
 
 // GetExternalInterfaceIP returns the allocated external interface IP.
 // Returns nil if the interface does not have allocated IP address.
-func (i *IPAM) GetExternalInterfaceIP(vppInterface string, nodeID uint32) net.IP {
+func (i *IPAM) GetExternalInterfaceIP(vppInterface string, nodeID uint32) *net.IPNet {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
-	for _, ipInfos := range i.extIfToIP {
+	for _, ipInfos := range i.extIfToIPNet {
 		for _, ipInfo := range ipInfos {
 			if ipInfo.vppInterface == vppInterface && ipInfo.nodeID == nodeID {
-				return ipInfo.ip
+				return ipInfo.ipNet
 			}
 		}
 	}
@@ -1212,17 +1212,17 @@ func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
 }
 
 // UpdateExternalInterfaceIPInfo is notifying IPAM about external interfacew IP allocation
-func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ip net.IP, isDelete bool) {
+func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ipNet *net.IPNet, isDelete bool) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
 	if !isDelete {
-		if _, exists := i.extIfToIP[extif]; !exists {
-			i.extIfToIP[extif] = make([]extIfIPInfo, 0)
+		if _, exists := i.extIfToIPNet[extif]; !exists {
+			i.extIfToIPNet[extif] = make([]extIfIPInfo, 0)
 		}
-		i.extIfToIP[extif] = append(i.extIfToIP[extif], extIfIPInfo{vppInterface: vppInterface, nodeID: nodeID, ip: ip})
+		i.extIfToIPNet[extif] = append(i.extIfToIPNet[extif], extIfIPInfo{vppInterface: vppInterface, nodeID: nodeID, ipNet: ipNet})
 	} else {
-		if ipInfos, exists := i.extIfToIP[extif]; exists {
+		if ipInfos, exists := i.extIfToIPNet[extif]; exists {
 			ind := -1
 			for index, ipInfo := range ipInfos { // try find a matching entry
 				if ipInfo.vppInterface == vppInterface && ipInfo.nodeID == nodeID {
@@ -1235,7 +1235,7 @@ func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID 
 				ipInfos = ipInfos[:len(ipInfos)-1]
 			}
 			if len(ipInfos) <= 0 { // no more ip infos, delete
-				delete(i.extIfToIP, extif)
+				delete(i.extIfToIPNet, extif)
 			}
 		}
 	}

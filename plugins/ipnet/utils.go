@@ -120,14 +120,15 @@ func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
 func (n *IPNet) notifyIpamExtIfChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
 	for _, node := range extIf.Nodes {
 		if nodeID, ok := n.getNodeID(node.Node); ok {
-			if ip := net.ParseIP(node.Ip); ip != nil {
-				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ip, isDelete)
+			if _, ipNet, err := net.ParseCIDR(node.Ip); err == nil {
+				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ipNet, isDelete)
 				return
-			} else {
-				if ip, _, err := net.ParseCIDR(node.Ip); err == nil {
-					n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ip, isDelete)
-					return
-				}
+			}
+		} else {
+			if ip := net.ParseIP(node.Ip); ip != nil {
+				ipNet := &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}
+				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ipNet, isDelete)
+				return
 			}
 		}
 	}
