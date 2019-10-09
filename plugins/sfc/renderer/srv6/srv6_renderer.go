@@ -199,21 +199,15 @@ func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC) int {
 	// if end pond IP address is nil, then we use l2endpoint
 	endSfSelectable := getEndLinkSfSelectable(sfc)
 
-	rndr.Log.Debugf("endSfSelectable: %v", endSfSelectable)
-
 	endIPNet := rndr.getLinkCustomIfIPNet(endSfSelectable, sfc.Network)
-	rndr.Log.Debugf("endIPNet: %v", endIPNet)
 	if endIPNet == nil {
-		rndr.Log.Debug("Return L2")
 		return l2DX2Endpoint
 	}
 
 	if isIPv6(endIPNet.IP) {
-		rndr.Log.Debug("Return IP6")
 		return l3Dx6Endpoint
 	}
 
-	rndr.Log.Debug("Return IP4")
 	return l3Dx4Endpoint
 }
 
@@ -465,7 +459,6 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 		}}
 	case l3Dx4Endpoint, l3Dx6Endpoint:
 		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterfaceConfigName, sfc.Network)
-		rndr.Log.Debugf("pod: %v, inputIf: %v, inputIfIP: %v", pod, pod.InputInterfaceConfigName, podInputIfIPNet)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress:  podInputIfIPNet.IP.String(),
 			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
