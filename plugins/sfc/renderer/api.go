@@ -237,8 +237,11 @@ func (iface InterfaceSF) OutInterface() string {
 }
 
 func (iface InterfaceSF) SidEndLocalSid(i ipam.API, podVRF, mainVRF uint32) (net.IP, uint32) {
-	address := iface.IPNet(i).IP
-	return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, address), podVRF // TODO Main?
+	if ipNet := iface.IPNet(i); ipNet != nil {
+		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, ipNet.IP), podVRF // TODO Main?
+	} else {
+		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, nil), podVRF // TODO Main?
+	}
 }
 
 // String converts InterfaceSF into a human-readable string.
