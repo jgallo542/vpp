@@ -345,7 +345,7 @@ func (rndr *Renderer) checkCustomNetworkIntegrity(paths [][]ServiceFunctionSelec
 
 func (rndr *Renderer) checkNetworkForPodInterface(podID pod.ID, intf string, customNetwork string) (string, error) {
 	if strings.TrimSpace(intf) != "" {
-		ifNetwork, err := rndr.IPAM.GetPodCustomIfNetworkName(podID, intf)
+		ifNetwork, err := rndr.IPNet.GetPodCustomIfNetworkName(podID, intf)
 		if err != nil {
 			return "", errors.Wrapf(err, "can't verify that interface %v from pod %v is "+
 				"in custom network interface where all SFC chain interfaces should be", intf, podID)

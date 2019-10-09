@@ -966,32 +966,6 @@ func (i *IPAM) GetPodCustomIfIP(podID podmodel.ID, ifName, network string) *net.
 	return nil
 }
 
-// GetPodCustomIfNetworkName returns the name of custom network which should contain given
-// pod custom interface or error otherwise. This supports both type of pods, remote and local
-func (i *IPAM) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
-	i.mutex.Lock()
-	defer i.mutex.Unlock()
-
-	allocation, found := i.getPodIPInfo(podID)
-	if !found {
-		return "", errors.Errorf("can't determine name of custom network for pod %v and interface %v due to"+
-			" missing IP information", podID, ifName)
-	}
-	for customIfID, _ := range allocation.customIfIPs {
-		parsedIfName, network, err := parseCustomIfID(customIfID)
-		if err != nil {
-			i.Log.Warn("ignoring customIfID %v from attempt to provide custom network name for"+
-				" pod %v and custom interface %v due to: %v", customIfID, podID, ifName, err)
-			continue
-		}
-		if strings.TrimSpace(parsedIfName) == strings.TrimSpace(ifName) {
-			return network, nil
-		}
-	}
-	return "", errors.Errorf("couldn't find any parsable record for custom interface %v in pod %v", ifName,
-		podID)
-}
-
 // GetPodFromIP returns the pod information related to the allocated pod IP.
 // found is false if the provided IP address has not been allocated to any local pod.
 func (i *IPAM) GetPodFromIP(podIP net.IP) (podID podmodel.ID, found bool) {
@@ -1371,16 +1345,4 @@ func customIfID(ifName, network string) string {
 		return ifName
 	}
 	return ifName + "/" + network
-}
-
-// parseCustomIfID parses customIfID and returns custom interface name and custom network
-func parseCustomIfID(id string) (ifName, network string, err error) {
-	split := strings.Split(id, "/")
-	if len(split) > 2 {
-		return "", "", errors.Errorf("can't parse customIfID %v", id)
-	}
-	if len(split) == 1 {
-		return split[0], "default" /* = ipnet.DefaultPodNetworkName */, nil
-	}
-	return split[0], split[1], nil
 }
