@@ -449,15 +449,24 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 		case ipalloc.Keyword:
 			if newIPAlloc, newOK := ksChange.NewValue.(*ipalloc.CustomIPAllocation); newOK {
 				podID := podmodel.ID{Name: newIPAlloc.PodName, Namespace: newIPAlloc.PodNamespace}
-				if _, exists := i.podToIP[podID]; !exists { // pod is remote
-					if _, found := i.remotePodToIP[podID]; !found {
-						i.remotePodToIP[podID] = &podIPInfo{}
+				for _, customAlloc := range newIPAlloc.CustomInterfaces {
+					ifIPAddress := net.ParseIP(customAlloc.IpAddress)
+					if i.podSubnetThisNode.Contains(ifIPAddress) { // local pod
+						if _, found := i.podToIP[podID]; !found {
+							i.podToIP[podID] = &podIPInfo{}
+							i.podToIP[podID].customIfIPs = make(map[string]net.IP)
+						}
+						i.podToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = ifIPAddress
+					} else { // remote pod
+						if _, found := i.remotePodToIP[podID]; !found {
+							i.remotePodToIP[podID] = &podIPInfo{}
+							i.remotePodToIP[podID].customIfIPs = make(map[string]net.IP)
+						}
+						i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = ifIPAddress
 					}
-					i.remotePodToIP[podID].customIfIPs = make(map[string]net.IP)
-					for _, customAlloc := range newIPAlloc.CustomInterfaces {
-						podIPAddress := net.ParseIP(customAlloc.IpAddress)
-						i.remotePodToIP[podID].customIfIPs[customIfID(customAlloc.Name, customAlloc.Network)] = podIPAddress
-					}
+				}
+				for key, val := range i.podToIP {
+					i.Log.Debugf("key %v, value: %v", key, val)
 				}
 			}
 		case podmodel.PodKeyword:
