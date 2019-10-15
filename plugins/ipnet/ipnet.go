@@ -416,26 +416,10 @@ func (n *IPNet) GetVxlanBVIIfName() string {
 // pod custom interface or error otherwise. This supports both type of pods, remote and local
 func (n *IPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
 	for name, info := range n.customNetworks {
-		// check local pods/interfaces
-		if _, inLocalPod := info.localPods[podID.String()]; inLocalPod {
-			for _, localInterface := range info.localInterfaces {
-				if ifName == localInterface {
+		if pod, inPod := info.pods[podID.String()]; inPod {
+			for _, intf := range info.interfaces[pod.ID.String()] {
+				if ifName == intf {
 					return name, nil // in local Pod && in local interface of given network
-				}
-			}
-		}
-
-		// check remote pods/interfaces
-		if remotePod, inRemotePod := info.remotePods[podID.String()]; inRemotePod {
-			nodeID, err := n.IPAM.NodeIDFromPodIP(net.ParseIP(remotePod.IPAddress))
-			if err != nil {
-				n.Log.Warnf("can't get node id from remote pod IP address %v (skipping it in pod custom "+
-					"interface network name search)", remotePod.IPAddress)
-			} else {
-				for _, localInterface := range info.remoteInterfaces[nodeID] {
-					if ifName == localInterface {
-						return name, nil // in local Pod && in local interface of given network
-					}
 				}
 			}
 		}

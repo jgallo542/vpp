@@ -88,9 +88,9 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 		n.vppIfaceToPodMutex.Unlock()
 	}
 
-	// update custom network information cache of custom network interfaces for remote pods
+	// update custom network information cache of custom network interfaces for all pods
 	for podID := range n.PodManager.GetPods() {
-		n.cacheRemoteCustomNetworkInterface(podID, configResync)
+		n.cacheCustomNetworkInterfaces(podID, configResync)
 	}
 
 	for _, pod := range n.PodManager.GetLocalPods() {

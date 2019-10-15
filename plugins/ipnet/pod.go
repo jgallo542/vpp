@@ -310,8 +310,8 @@ func (n *IPNet) podCustomIfsConfig(pod *podmanager.LocalPod, eventType configEve
 		if !n.isDefaultPodNetwork(customIf.ifNet) && !n.isStubNetwork(customIf.ifNet) {
 			// post-configure interface in custom network
 			vppIfName, _, _ := n.podInterfaceName(pod, customIf.ifName, customIf.ifType)
-			n.cacheCustomNetworkInterface(customIf.ifNet, pod, nil, nil, nil, vppIfName,
-				"", n.NodeSync.GetNodeID(), eventType != configDelete)
+			n.cacheCustomNetworkInterface(customIf.ifNet, pod, nil, nil, vppIfName,
+				true, eventType != configDelete)
 			if n.isL2Network(customIf.ifNet) {
 				bdKey, bd := n.l2CustomNwBridgeDomain(n.customNetworks[customIf.ifNet])
 				updateConfig[bdKey] = bd
