@@ -93,7 +93,7 @@ type customNetworkInfo struct {
 	extInterfaces map[string]*extifmodel.ExternalInterface
 	// list of all interfaces (pod + external) in custom network
 	// (map[pod ID/external interface name]=list of interfaces for that pod/external interface)
-	interfaces         map[string][]string
+	interfaces map[string][]string
 }
 
 // prefix for the hardware address of VXLAN interfaces
