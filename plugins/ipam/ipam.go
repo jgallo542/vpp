@@ -487,7 +487,7 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 				podID := podmodel.ID{Name: newIPAlloc.PodName, Namespace: newIPAlloc.PodNamespace}
 				for _, customAlloc := range newIPAlloc.CustomInterfaces {
 					ifIPAddress := net.ParseIP(customAlloc.IpAddress)
-					if i.podSubnetThisNode.Contains(ifIPAddress) { // local pod
+					if i.isLocalPodInterface(ifIPAddress) { // local pod
 						if _, found := i.podToIP[podID]; !found {
 							i.podToIP[podID] = &podIPInfo{}
 							i.podToIP[podID].customIfIPs = make(map[string]net.IP)
@@ -539,6 +539,16 @@ func (i *IPAM) Update(event controller.Event, txn controller.UpdateOperations) (
 		}
 	}
 	return "", nil
+}
+
+// isLocalPodInterface determines from pod interface IP address whether interface (and pod) is located on this node
+func (i *IPAM) isLocalPodInterface(intefaceIPAddress net.IP) bool {
+	for _, nw := range i.podNetworks {
+		if nw.podSubnetThisNode.Contains(intefaceIPAddress) {
+			return true
+		}
+	}
+	return false
 }
 
 // Revert is NOOP - never called.
