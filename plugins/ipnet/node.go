@@ -94,8 +94,6 @@ type customNetworkInfo struct {
 	// list of all interfaces (pod + external) in custom network
 	// (map[pod ID/external interface name]=list of interfaces for that pod/external interface)
 	interfaces         map[string][]string
-	vniPoolInitialized bool
-	vrfPoolInitialized bool
 }
 
 // prefix for the hardware address of VXLAN interfaces
@@ -356,7 +354,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 			}
 			vppIfName := nodeIf.VppInterfaceName
 			vrf := n.ContivConf.GetRoutingConfig().MainVRFID
-			if n.isL3Network(extIf.Network) {
+			if n.isDefaultPodNetwork(extIf.Network) || n.isL3Network(extIf.Network) {
 				vrf, _ = n.GetOrAllocateVrfID(extIf.Network)
 			}
 			if nodeIf.Vlan == 0 {
@@ -367,7 +365,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 				// VLAN subinterface config (main interface with no IP + subinterface)
 				key, iface := n.physicalInterface(nodeIf.VppInterfaceName, vrf, nil)
 				config[key] = iface
-				key, iface = n.subInterface(nodeIf.VppInterfaceName, nodeIf.Vlan, ip)
+				key, iface = n.subInterface(nodeIf.VppInterfaceName, vrf, nodeIf.Vlan, ip)
 				config[key] = iface
 				vppIfName = iface.Name
 			}
@@ -419,12 +417,13 @@ func (n *IPNet) physicalInterface(name string, vrf uint32, ips contivconf.IPsWit
 }
 
 // subInterface returns configuration for a VLAN subinterface of an interface.
-func (n *IPNet) subInterface(parentIfName string, vlan uint32, ips contivconf.IPsWithNetworks) (key string, config *vpp_interfaces.Interface) {
+func (n *IPNet) subInterface(parentIfName string, vrf uint32, vlan uint32, ips contivconf.IPsWithNetworks) (
+	key string, config *vpp_interfaces.Interface) {
 	iface := &vpp_interfaces.Interface{
 		Name:    n.getSubInterfaceName(parentIfName, vlan),
 		Type:    vpp_interfaces.Interface_SUB_INTERFACE,
 		Enabled: true,
-		Vrf:     n.ContivConf.GetRoutingConfig().MainVRFID,
+		Vrf:     vrf,
 		Link: &vpp_interfaces.Interface_Sub{
 			Sub: &vpp_interfaces.SubInterface{
 				ParentName: parentIfName,
@@ -904,8 +903,7 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podma
 func (n *IPNet) getOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
 
 	// allocate the pool if needed
-	nw := n.customNetworks[networkName]
-	if nw == nil || !nw.vniPoolInitialized {
+	if !n.vniPoolInitialized {
 		err = n.IDAlloc.InitPool(VxlanVniPoolName, &idallocation.AllocationPool_Range{
 			MinId: vxlanVNIPoolStart,
 			MaxId: vxlanVNIPoolEnd,
@@ -914,9 +912,7 @@ func (n *IPNet) getOrAllocateVxlanVNI(networkName string) (vni uint32, err error
 			n.Log.Errorf("VNI pool init failed: %v", err)
 			return 0, err
 		}
-		if nw != nil {
-			nw.vniPoolInitialized = true
-		}
+		n.vniPoolInitialized = true
 	}
 
 	// get / allocate a VNI
@@ -941,8 +937,7 @@ func (n *IPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 	}
 
 	// allocate the pool if needed
-	nw := n.customNetworks[networkName]
-	if nw == nil || !nw.vrfPoolInitialized {
+	if !n.vrfPoolInitialized {
 		err = n.IDAlloc.InitPool(vrfPoolName, &idallocation.AllocationPool_Range{
 			MinId: vrfPoolStart,
 			MaxId: vrfPoolEnd,
@@ -951,9 +946,7 @@ func (n *IPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 			n.Log.Errorf("VRF pool init failed: %v", err)
 			return 0, err
 		}
-		if nw != nil {
-			nw.vrfPoolInitialized = true
-		}
+		n.vrfPoolInitialized = true
 	}
 
 	// get / allocate a VRF
