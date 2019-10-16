@@ -1205,7 +1205,8 @@ func (i *IPAM) SidForSFCEndLocalsid(serviceFunctionPodIP net.IP) net.IP {
 }
 
 // UpdateExternalInterfaceIPInfo is notifying IPAM about external interfacew IP allocation
-func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ipNet *net.IPNet, isDelete bool) {
+func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID uint32, ipNet *net.IPNet,
+	isDelete bool) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 
@@ -1213,7 +1214,8 @@ func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID 
 		if _, exists := i.extIfToIPNet[extif]; !exists {
 			i.extIfToIPNet[extif] = make([]extIfIPInfo, 0)
 		}
-		i.extIfToIPNet[extif] = append(i.extIfToIPNet[extif], extIfIPInfo{vppInterface: vppInterface, nodeID: nodeID, ipNet: ipNet})
+		i.extIfToIPNet[extif] = append(i.extIfToIPNet[extif],
+			extIfIPInfo{vppInterface: vppInterface, nodeID: nodeID, ipNet: ipNet})
 	} else {
 		if ipInfos, exists := i.extIfToIPNet[extif]; exists {
 			ind := -1

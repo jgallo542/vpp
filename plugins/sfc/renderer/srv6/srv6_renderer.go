@@ -172,7 +172,8 @@ const (
 	l3Dx6Endpoint
 )
 
-func (rndr *Renderer) getLinkCustomIfIPNet(sfSelectable ServiceFunctionSelectable, customNetworkName string) (endLinkCustomIfIPNet *net.IPNet) {
+func (rndr *Renderer) getLinkCustomIfIPNet(sfSelectable ServiceFunctionSelectable,
+	customNetworkName string) (endLinkCustomIfIPNet *net.IPNet) {
 	switch selectable := sfSelectable.(type) {
 	case *renderer.PodSF:
 		pod := selectable
@@ -275,13 +276,15 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 			if sfSelectable.IsLocal() {
 				iPNet := sfSelectable.IPNet(rndr.IPAM) // pod IP already allocated (checked in path creation)
 				if i == len(path)-1 {                  // end link
-					if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
+					if packetLocation == mainVRFLocation || packetLocation == remoteLocation {
+						// remote packet will arrive in mainVRF -> packet is in mainVRF
 						switch sfSelectable := sfSelectable.(type) {
 						case *renderer.PodSF:
 							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(iPNet.IP.To16()), podVRFID, config)
 						case *renderer.InterfaceSF:
 							if extIfIPNet := sfSelectable.IPNet(rndr.IPAM); extIfIPNet != nil {
-								sid := rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(), extIfIPNet.IP.To16())
+								sid := rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(),
+									extIfIPNet.IP.To16())
 								rndr.createRouteToPodVrf(sid, podVRFID, config)
 							} else {
 								sid := rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(), nil)
@@ -290,17 +293,23 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 						}
 						packetLocation = podVRFLocation
 					}
-					if err := rndr.createEndLinkLocalsid(sfc, customNetworkName, podVRFID, config, sfSelectable); err != nil {
-						return config, errors.Wrapf(err, "can't create end link local sid (%v %v) for sfc chain %v", sfSelectable.TypeID(), sfSelectable.Identifier(), sfc.Name)
+					if err := rndr.createEndLinkLocalsid(sfc, customNetworkName, podVRFID, config,
+						sfSelectable); err != nil {
+						return config, errors.Wrapf(err, "can't create end link local sid (%v %v) for "+
+							"sfc chain %v", sfSelectable.TypeID(), sfSelectable.Identifier(), sfc.Name)
 					}
 				} else { // inner link
 					if pod, ok := sfSelectable.(*renderer.PodSF); ok {
-						if packetLocation == mainVRFLocation || packetLocation == remoteLocation { // remote packet will arrive in mainVRF -> packet is in mainVRF
-							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, iPNet.IP.To16()), podVRFID, config)
+						if packetLocation == mainVRFLocation || packetLocation == remoteLocation {
+							// remote packet will arrive in mainVRF -> packet is in mainVRF
+							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name,
+								iPNet.IP.To16()), podVRFID, config)
 							packetLocation = podVRFLocation
 						}
-						if err := rndr.createInnerLinkLocalsids(sfc, pod, iPNet.IP.To16(), customNetworkName, podVRFID, config); err != nil {
-							return config, errors.Wrapf(err, "can't create inner link local sid (%v %v) for sfc chain %v", sfSelectable.TypeID(), sfSelectable.Identifier(), sfc.Name)
+						if err := rndr.createInnerLinkLocalsids(sfc, pod, iPNet.IP.To16(), customNetworkName,
+							podVRFID, config); err != nil {
+							return config, errors.Wrapf(err, "can't create inner link local sid (%v %v) "+
+								"for sfc chain %v", sfSelectable.TypeID(), sfSelectable.Identifier(), sfc.Name)
 						}
 						endpointType := rndr.endPointType(sfc, customNetworkName)
 						if endpointType == l2DX2Endpoint || endpointType == l3Dx4Endpoint {
@@ -316,14 +325,15 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 				if packetLocation == podVRFLocation {
 					otherNodeIP, _, err := rndr.IPAM.NodeIPAddress(sfSelectable.NodeIdentifier())
 					if err != nil {
-						return config, errors.Wrapf(err, "cant create route from pod VRF to main VRF to achieve route "+
-							"between local and remote sibling SFC links due to unability to generate node IP address from ID  %v", sfSelectable.NodeIdentifier())
+						return config, errors.Wrapf(err, "cant create route from pod VRF to main VRF to "+
+							"achieve route between local and remote sibling SFC links due to unability to generate "+
+							"node IP address from ID  %v", sfSelectable.NodeIdentifier())
 					}
 					// TODO rename SidForServiceNodeLocalsid and related config stuff to reflect usage in SFC
 					rndr.createRouteToMainVrf(rndr.IPAM.SidForServiceNodeLocalsid(otherNodeIP), podVRFID, config)
 				}
-				// NOTE: further routing to intermediate Localsid (Localsid that ends segment that only transports packet to another node) is configured in ipnet package
-				// -> no need to add routing out of node here
+				// NOTE: further routing to intermediate Localsid (Localsid that ends segment that only transports
+				// packet to another node) is configured in ipnet package -> no need to add routing out of node here
 				packetLocation = remoteLocation
 			}
 
@@ -541,7 +551,8 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	return nil
 }
 
-func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controller.KeyValuePairs, sfSelectable ServiceFunctionSelectable) error {
+func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controller.KeyValuePairs,
+	sfSelectable ServiceFunctionSelectable) error {
 	var macAddress string
 	var err error
 	switch sfSelectable := sfSelectable.(type) {
@@ -549,13 +560,15 @@ func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controlle
 		pod := sfSelectable
 		macAddress, err = rndr.podCustomIFPhysAddress(pod, pod.InputInterfaceConfigName)
 		if err != nil {
-			return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v on pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
+			return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v "+
+				"on pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
 		}
 	case *renderer.InterfaceSF:
 		extIf := sfSelectable
 		macAddress, err = rndr.extIfPhysAddress(extIf)
 		if err != nil {
-			return errors.Wrapf(err, "can't retrieve physical(mac) address for interface %v of sfc chain", extIf.Identifier())
+			return errors.Wrapf(err, "can't retrieve physical(mac) address for interface %v of "+
+				"sfc chain", extIf.Identifier())
 		}
 	}
 	arpTable := &vpp_l3.ARPEntry{
@@ -600,8 +613,10 @@ func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName s
 	return linuxInterface.PhysAddress, nil
 }
 
-func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetworkName string, podVRFID uint32, config controller.KeyValuePairs, endSfSelectable ServiceFunctionSelectable) error {
-	sid, installationVrfID := endSfSelectable.SidEndLocalSid(rndr.IPAM, podVRFID, rndr.ContivConf.GetRoutingConfig().MainVRFID)
+func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetworkName string, podVRFID uint32,
+	config controller.KeyValuePairs, endSfSelectable ServiceFunctionSelectable) error {
+	sid, installationVrfID := endSfSelectable.SidEndLocalSid(rndr.IPAM, podVRFID,
+		rndr.ContivConf.GetRoutingConfig().MainVRFID)
 	localSID := &vpp_srv6.LocalSID{
 		Sid:               sid.String(),
 		InstallationVrfId: installationVrfID,
@@ -635,7 +650,8 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetwo
 			},
 		}
 		if err := rndr.setARPForInputInterface(endIPNet, config, endSfSelectable); err != nil {
-			return errors.Wrapf(err, "can't set arp for end %v %v", endSfSelectable.TypeID(), endSfSelectable.Identifier())
+			return errors.Wrapf(err, "can't set arp for end %v %v", endSfSelectable.TypeID(),
+				endSfSelectable.Identifier())
 		}
 	}
 
@@ -678,7 +694,8 @@ func (rndr *Renderer) createPolicy(paths [][]ServiceFunctionSelectable, sfc *ren
 			if lastSegmentNode != sfSelectable.NodeIdentifier() { // move to another node
 				nodeIP, _, err := rndr.IPAM.NodeIPAddress(sfSelectable.NodeIdentifier())
 				if err != nil {
-					return errors.Wrapf(err, "unable to create node-to-node transportation segment due to failure in generatation of node IP address for node id  %v", sfSelectable.NodeIdentifier())
+					return errors.Wrapf(err, "unable to create node-to-node transportation segment due to "+
+						"failure in generatation of node IP address for node id  %v", sfSelectable.NodeIdentifier())
 				}
 				segments = append(segments, rndr.IPAM.SidForServiceNodeLocalsid(nodeIP.To16()).String())
 				lastSegmentNode = sfSelectable.NodeIdentifier()
@@ -686,16 +703,20 @@ func (rndr *Renderer) createPolicy(paths [][]ServiceFunctionSelectable, sfc *ren
 			if i == len(path)-1 { // end link
 				switch sfSelectable.(type) {
 				case *renderer.PodSF:
-					segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(sfSelectable.IPNet(rndr.IPAM).IP.To16()).String())
+					segments = append(segments, rndr.IPAM.SidForSFCEndLocalsid(
+						sfSelectable.IPNet(rndr.IPAM).IP.To16()).String())
 				case *renderer.InterfaceSF:
 					if extIfIPNet := sfSelectable.IPNet(rndr.IPAM); extIfIPNet != nil {
-						segments = append(segments, rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(), extIfIPNet.IP.To16()).String())
+						segments = append(segments, rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(),
+							extIfIPNet.IP.To16()).String())
 					} else {
-						segments = append(segments, rndr.IPAM.SidForSFCExternalIfLocalsid(sfSelectable.Identifier(), nil).String())
+						segments = append(segments, rndr.IPAM.SidForSFCExternalIfLocalsid(
+							sfSelectable.Identifier(), nil).String())
 					}
 				}
 			} else { // inner link
-				segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name, sfSelectable.IPNet(rndr.IPAM).IP.To16()).String())
+				segments = append(segments, rndr.IPAM.SidForSFCServiceFunctionLocalsid(sfc.Name,
+					sfSelectable.IPNet(rndr.IPAM).IP.To16()).String())
 			}
 		}
 
@@ -719,12 +740,14 @@ func (rndr *Renderer) createPolicy(paths [][]ServiceFunctionSelectable, sfc *ren
 	return nil
 }
 
-func (rndr *Renderer) createSteerings(localStartSfSelectables []ServiceFunctionSelectable, sfc *renderer.ContivSFC, bsid net.IP, customNetworkName string, podVRFID uint32, config controller.KeyValuePairs) {
+func (rndr *Renderer) createSteerings(localStartSfSelectables []ServiceFunctionSelectable, sfc *renderer.ContivSFC,
+	bsid net.IP, customNetworkName string, podVRFID uint32, config controller.KeyValuePairs) {
 	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
 		for _, startSfSelectable := range localStartSfSelectables {
 			steering := &vpp_srv6.Steering{
-				Name: fmt.Sprintf("forK8sSFC-%s-from-%s-%s", sfc.Name, startSfSelectable.TypeID(), startSfSelectable.Identifier()),
+				Name: fmt.Sprintf("forK8sSFC-%s-from-%s-%s", sfc.Name, startSfSelectable.TypeID(),
+					startSfSelectable.Identifier()),
 				PolicyRef: &vpp_srv6.Steering_PolicyBsid{
 					PolicyBsid: bsid.String(),
 				},

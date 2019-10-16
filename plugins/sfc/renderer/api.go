@@ -114,7 +114,8 @@ type ServiceFunction struct {
 	// Pods satisfying the pod selector criteria for this service function.
 	Pods []*PodSF
 
-	// ExternalInterfaces contains list of interfaces satisfying the interface selector criteria for this service function.
+	// ExternalInterfaces contains list of interfaces satisfying
+	// the interface selector criteria for this service function.
 	ExternalInterfaces []*InterfaceSF
 }
 
