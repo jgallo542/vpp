@@ -601,15 +601,10 @@ func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName s
 }
 
 func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetworkName string, podVRFID uint32, config controller.KeyValuePairs, endSfSelectable ServiceFunctionSelectable) error {
-	unresolved!!! // TODO resolve
-	// sid, installationVrfID := endSfSelectable.SidEndLocalSid(rndr.IPAM, rndr.ContivConf.GetRoutingConfig().PodVRFID, rndr.ContivConf.GetRoutingConfig().MainVRFID)
-	//localSID := &vpp_srv6.LocalSID{
-	//	Sid:               sid.String(),
-	//	InstallationVrfId: installationVrfID,
-	//}
+	sid, installationVrfID := endSfSelectable.SidEndLocalSid(rndr.IPAM, podVRFID, rndr.ContivConf.GetRoutingConfig().MainVRFID)
 	localSID := &vpp_srv6.LocalSID{
-		Sid:               rndr.IPAM.SidForSFCEndLocalsid(endLinkAddress).String(),
-		InstallationVrfId: podVRFID,
+		Sid:               sid.String(),
+		InstallationVrfId: installationVrfID,
 	}
 
 	switch rndr.endPointType(sfc, customNetworkName) {
