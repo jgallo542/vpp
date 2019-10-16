@@ -83,7 +83,8 @@ func (mn *MockIPNet) GetPodIfNames(podNamespace string, podName string) (vppIfNa
 // with specified name and type associated with the given local pod name + namespace.
 func (mn *MockIPNet) GetPodCustomIfNames(podNamespace, podName, customIfName string) (ifName string,
 	linuxIfName string, exists bool) {
-	return "", linuxIfName, false
+	//return "", linuxIfName, false
+	return customIfName, customIfName, true
 }
 
 // GetExternalIfName returns logical name that corresponds to the specified external interface name and VLAN ID.

@@ -63,6 +63,7 @@ func (n *IPNet) Resync(event controller.Event, kubeStateData controller.KubeStat
 	// external interfaces
 	for _, extIfProto := range kubeStateData[extifmodel.Keyword] {
 		extIf := extIfProto.(*extifmodel.ExternalInterface)
+		n.notifyIpamExtIfChange(extIf, false)
 		config, updateConfig, err := n.externalInterfaceConfig(extIf, configResync)
 		if err == nil {
 			controller.PutAll(txn, config)
