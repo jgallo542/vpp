@@ -559,7 +559,7 @@ func addPodCustomIf(podID podmodel.ID, ifName string, ip, mac string, fixture *F
 		PodName:      podID.Name,
 		PodNamespace: podID.Namespace,
 		CustomInterfaces: []*ipalloc.CustomPodInterface{
-			&ipalloc.CustomPodInterface{
+			{
 				Name:      ifName,
 				IpAddress: ip,
 			},
