@@ -153,15 +153,22 @@ type PodSF struct {
 	NodeID uint32 // ID of the node where the service function runs
 	Local  bool   // true if this is a node-local pod
 
-	// For local pods, interface names contain actual pod interface names which can be used for configuration
-	// without further processing. Non-local pods contain logical names as they came from CRD.
-	InputInterface  string // name of the interface trough which the traffic enters the pod
-	OutputInterface string // name of the interface using which the traffic leaves the pod
+	InputInterface  *InterfaceNames // names of the interface trough which the traffic enters the pod
+	OutputInterface *InterfaceNames // names of the interface using which the traffic leaves the pod
+}
 
-	// name of the interface from configuration file through which the traffic enters the pod
-	InputInterfaceConfigName string
-	// name of the interface from configuration file through which the traffic enters the pod
-	OutputInterfaceConfigName string
+// InterfaceNames is container for multiple names for one interface
+type InterfaceNames struct {
+	// LogicalName for local pods, LogicalName contain actual pod interface name which can be used for configuration
+	// without further processing. LogicalName for non-local pods contain name from CRD.
+	LogicalName string
+	// CRDName is name of the interface as it came from CRD
+	CRDName string
+}
+
+// String converts InterfaceNames into a human-readable string.
+func (in InterfaceNames) String() string {
+	return fmt.Sprintf("<LogicalName: %s, CRDName: %s>", in.LogicalName, in.CRDName)
 }
 
 func (pod PodSF) IsLocal() bool {
@@ -185,11 +192,11 @@ func (pod PodSF) IPNet(i ipam.API) *net.IPNet {
 }
 
 func (pod PodSF) InInterface() string {
-	return pod.InputInterface
+	return pod.InputInterface.LogicalName
 }
 
 func (pod PodSF) OutInterface() string {
-	return pod.OutputInterface
+	return pod.OutputInterface.LogicalName
 }
 
 func (pod PodSF) SidEndLocalSid(i ipam.API, podVRF, mainVRF uint32) (net.IP, uint32) {

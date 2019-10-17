@@ -504,13 +504,17 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 			}
 
 			sfPods = append(sfPods, &renderer.PodSF{
-				ID:                        podID,
-				NodeID:                    nodeID,
-				Local:                     isLocal,
-				InputInterface:            inputIfLogicalName,
-				OutputInterface:           outputIfLogicalName,
-				InputInterfaceConfigName:  inputIfCRDName,
-				OutputInterfaceConfigName: outputIfCRDName,
+				ID:     podID,
+				NodeID: nodeID,
+				Local:  isLocal,
+				InputInterface: &renderer.InterfaceNames{
+					LogicalName: inputIfLogicalName,
+					CRDName:     inputIfCRDName,
+				},
+				OutputInterface: &renderer.InterfaceNames{
+					LogicalName: outputIfLogicalName,
+					CRDName:     outputIfCRDName,
+				},
 			})
 		}
 	}
