@@ -166,6 +166,7 @@ const (
 	mainVRFLocation
 )
 
+// all endpoint types
 const (
 	l2DX2Endpoint int = iota
 	l3Dx4Endpoint
@@ -532,15 +533,19 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
-			OutgoingInterface: pod.InputInterface.LogicalName,  // outgoing interface for SR-proxy is input interface for service
-			IncomingInterface: pod.OutputInterface.LogicalName, // incoming interface for SR-proxy is output interface for service
+			// outgoing interface for SR-proxy is input interface for service
+			OutgoingInterface: pod.InputInterface.LogicalName,
+			// incoming interface for SR-proxy is output interface for service
+			IncomingInterface: pod.OutputInterface.LogicalName,
 		}}
 	case l3Dx4Endpoint, l3Dx6Endpoint:
 		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterface.CRDName, customNetworkName)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
-			L3ServiceAddress:  podInputIfIPNet.IP.String(),
-			OutgoingInterface: pod.InputInterface.LogicalName,  // outgoing interface for SR-proxy is input interface for service
-			IncomingInterface: pod.OutputInterface.LogicalName, // incoming interface for SR-proxy is output interface for service
+			L3ServiceAddress: podInputIfIPNet.IP.String(),
+			// outgoing interface for SR-proxy is input interface for service
+			OutgoingInterface: pod.InputInterface.LogicalName,
+			// incoming interface for SR-proxy is output interface for service
+			IncomingInterface: pod.OutputInterface.LogicalName,
 		}}
 
 		if err := rndr.setARPForInputInterface(podInputIfIPNet, config, pod); err != nil {
@@ -797,7 +802,6 @@ func (rndr *Renderer) localSfSelectables(sf *renderer.ServiceFunction) []Service
 func getEndLinkSfSelectable(sfc *renderer.ContivSFC) ServiceFunctionSelectable {
 	if sfc.Chain[len(sfc.Chain)-1].Type == renderer.Pod {
 		return sfc.Chain[len(sfc.Chain)-1].Pods[0]
-	} else {
-		return sfc.Chain[len(sfc.Chain)-1].ExternalInterfaces[0]
 	}
+	return sfc.Chain[len(sfc.Chain)-1].ExternalInterfaces[0]
 }
