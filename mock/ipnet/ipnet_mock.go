@@ -31,19 +31,21 @@ const (
 type MockIPNet struct {
 	sync.Mutex
 
-	podIf            map[podmodel.ID]string
-	networkToVRFID   map[string]uint32
-	hostIPs          []net.IP
-	nodeIP           *net.IPNet
-	hostInterconnect string
-	vxlanBVIIfName   string
+	podIf                 map[podmodel.ID]string
+	networkToVRFID        map[string]uint32
+	podInterfaceToNetwork map[string]string
+	hostIPs               []net.IP
+	nodeIP                *net.IPNet
+	hostInterconnect      string
+	vxlanBVIIfName        string
 }
 
 // NewMockIPNet is a constructor for MockIPNet.
 func NewMockIPNet() *MockIPNet {
 	return &MockIPNet{
-		podIf:          make(map[podmodel.ID]string),
-		networkToVRFID: make(map[string]uint32),
+		podIf:                 make(map[podmodel.ID]string),
+		networkToVRFID:        make(map[string]uint32),
+		podInterfaceToNetwork: make(map[string]string),
 	}
 }
 
@@ -74,6 +76,11 @@ func (mn *MockIPNet) SetVxlanBVIIfName(ifName string) {
 // SetHostIPs sets IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPNet) SetHostIPs(ips []net.IP) {
 	mn.hostIPs = ips
+}
+
+// SetNetworkVrfID sets VRF table ID to network name that it should belong to.
+func (mn *MockIPNet) SetGetPodCustomIfNetworkName(podID podmodel.ID, ifName string, networkName string) {
+	mn.podInterfaceToNetwork[fmt.Sprintf("%s/%s", podID.String(), ifName)] = networkName
 }
 
 // SetNetworkVrfID sets VRF table ID to network name that it should belong to.
@@ -148,6 +155,12 @@ func (mn *MockIPNet) GetVxlanBVIIfName() string {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPNet) GetHostIPs() []net.IP {
 	return mn.hostIPs
+}
+
+// GetPodCustomIfNetworkName returns the name of custom network which should contain given
+// pod custom interface or error otherwise. This supports both type of pods, remote and local
+func (mn *MockIPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
+	return mn.podInterfaceToNetwork[fmt.Sprintf("%s/%s", podID.String(), ifName)], nil
 }
 
 // GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
