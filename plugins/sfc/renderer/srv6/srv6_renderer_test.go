@@ -215,10 +215,10 @@ func getOneNodePodToPodChain(fixture *Fixture) (*renderer.ContivSFC, *sfcConfig)
 	}
 
 	pod1 := &renderer.PodSF{
-		ID:     pod1ID,
-		NodeID: 1,
-		Local:  true,
-		InputInterfaceConfigName: pod1InputInterfaceName,
+		ID:             pod1ID,
+		NodeID:         1,
+		Local:          true,
+		InputInterface: interfaceNames(pod1InputInterfaceName, pod1InputInterfaceName),
 	}
 	sf1 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -230,11 +230,11 @@ func getOneNodePodToPodChain(fixture *Fixture) (*renderer.ContivSFC, *sfcConfig)
 		Namespace: "default",
 	}
 	pod2 := &renderer.PodSF{
-		ID:     pod2ID,
-		NodeID: 1,
-		Local:  true,
-		InputInterfaceConfigName:  pod2InputInterfaceName,
-		OutputInterfaceConfigName: pod2OutputInterfaceName,
+		ID:              pod2ID,
+		NodeID:          1,
+		Local:           true,
+		InputInterface:  interfaceNames(pod2InputInterfaceName, pod2InputInterfaceName),
+		OutputInterface: interfaceNames(pod2OutputInterfaceName, pod2OutputInterfaceName),
 	}
 	sf2 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -246,11 +246,11 @@ func getOneNodePodToPodChain(fixture *Fixture) (*renderer.ContivSFC, *sfcConfig)
 		Namespace: "default",
 	}
 	pod3 := &renderer.PodSF{
-		ID:     pod3ID,
-		NodeID: 1,
-		Local:  true,
-		InputInterfaceConfigName:  pod3InputInterfaceName,
-		OutputInterfaceConfigName: pod3OutputInterfaceName,
+		ID:              pod3ID,
+		NodeID:          1,
+		Local:           true,
+		InputInterface:  interfaceNames(pod3InputInterfaceName, pod3InputInterfaceName),
+		OutputInterface: interfaceNames(pod3OutputInterfaceName, pod3OutputInterfaceName),
 	}
 	sf3 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -262,10 +262,10 @@ func getOneNodePodToPodChain(fixture *Fixture) (*renderer.ContivSFC, *sfcConfig)
 		Namespace: "default",
 	}
 	pod4 := &renderer.PodSF{
-		ID:     pod4ID,
-		NodeID: 1,
-		Local:  true,
-		InputInterfaceConfigName: pod4InputInterfaceName,
+		ID:             pod4ID,
+		NodeID:         1,
+		Local:          true,
+		InputInterface: interfaceNames(pod4InputInterfaceName, pod4InputInterfaceName),
 	}
 	sf4 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -536,8 +536,8 @@ func addSFC(sfc *renderer.ContivSFC, fixture *Fixture) {
 		case renderer.Pod:
 			newSF.Type = sfcmodel.ServiceFunctionChain_ServiceFunction_Pod
 			newSF.PodSelector = map[string]string{podSelectorKey: podSelectorValPrefix + strconv.Itoa(i)}
-			newSF.InputInterface = link.Pods[0].InputInterfaceConfigName
-			newSF.OutputInterface = link.Pods[0].OutputInterfaceConfigName
+			newSF.InputInterface = link.Pods[0].InputInterface.CRDName
+			newSF.OutputInterface = link.Pods[0].OutputInterface.CRDName
 		case renderer.ExternalInterface:
 			newSF.Type = sfcmodel.ServiceFunctionChain_ServiceFunction_ExternalInterface
 			newSF.Interface = link.ExternalInterfaces[0].InterfaceName
@@ -645,4 +645,11 @@ func hasPolicy(policy *vpp_srv6.Policy, policies map[string]*vpp_srv6.Policy) bo
 		}
 	}
 	return false
+}
+
+func interfaceNames(logicalName, crdName string) *renderer.InterfaceNames {
+	return &renderer.InterfaceNames{
+		LogicalName: logicalName,
+		CRDName:     crdName,
+	}
 }
