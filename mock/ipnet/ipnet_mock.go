@@ -32,6 +32,7 @@ type MockIPNet struct {
 	sync.Mutex
 
 	podIf            map[podmodel.ID]string
+	networkToVRFID   map[string]uint32
 	hostIPs          []net.IP
 	nodeIP           *net.IPNet
 	hostInterconnect string
@@ -40,7 +41,10 @@ type MockIPNet struct {
 
 // NewMockIPNet is a constructor for MockIPNet.
 func NewMockIPNet() *MockIPNet {
-	return &MockIPNet{podIf: make(map[podmodel.ID]string)}
+	return &MockIPNet{
+		podIf:          make(map[podmodel.ID]string),
+		networkToVRFID: make(map[string]uint32),
+	}
 }
 
 // SetPodIfName allows to create a fake association between a pod and an interface.
@@ -70,6 +74,11 @@ func (mn *MockIPNet) SetVxlanBVIIfName(ifName string) {
 // SetHostIPs sets IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPNet) SetHostIPs(ips []net.IP) {
 	mn.hostIPs = ips
+}
+
+// SetNetworkVrfID sets VRF table ID to network name that it should belong to.
+func (mn *MockIPNet) SetNetworkVrfID(networkName string, vrfID uint32) {
+	mn.networkToVRFID[networkName] = vrfID
 }
 
 // GetPodIfNames returns pod's interface name as set previously using SetPodIfName.
@@ -139,4 +148,10 @@ func (mn *MockIPNet) GetVxlanBVIIfName() string {
 // GetHostIPs returns all IP addresses of this node present in the host network namespace (Linux).
 func (mn *MockIPNet) GetHostIPs() []net.IP {
 	return mn.hostIPs
+}
+
+// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
+// is not allocated yet for given network, it allocates the VRF table and returns its ID.
+func (mn *MockIPNet) GetNetworkVrfID(networkName string) (vrf uint32, err error) {
+	return mn.networkToVRFID[networkName], nil
 }

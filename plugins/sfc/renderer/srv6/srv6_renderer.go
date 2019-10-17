@@ -247,7 +247,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		return config, errors.Wrapf(err,
 			"not all interfaces in SFC chain with name %v are in the same custom/default network", sfc.Name)
 	}
-	podVRFID, err := rndr.IPNet.GetOrAllocateVrfID(customNetworkName)
+	podVRFID, err := rndr.IPNet.GetNetworkVrfID(customNetworkName)
 	if err != nil {
 		return config, errors.Wrapf(err, "can't retrieve pod VRF ID for network %v", customNetworkName)
 	}

@@ -353,7 +353,7 @@ func (n *IPNet) externalInterfaceConfig(extIf *extifmodel.ExternalInterface, eve
 			vppIfName := nodeIf.VppInterfaceName
 			vrf := n.ContivConf.GetRoutingConfig().MainVRFID
 			if n.isDefaultPodNetwork(extIf.Network) || n.isL3Network(extIf.Network) {
-				vrf, _ = n.GetOrAllocateVrfID(extIf.Network)
+				vrf, _ = n.getOrAllocateVrfID(extIf.Network)
 			}
 			if nodeIf.Vlan == 0 {
 				// standard interface config
@@ -722,7 +722,7 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 	}
 	if nwConfig.Type == customnetmodel.CustomNetwork_L3 {
 		// get / allocate a VRF ID
-		vrfID, err := n.GetOrAllocateVrfID(nwConfig.Name)
+		vrfID, err := n.getOrAllocateVrfID(nwConfig.Name)
 		if err != nil {
 			return config, err
 		}
@@ -924,9 +924,15 @@ func (n *IPNet) releaseVxlanVNI(networkName string) (err error) {
 	return n.IDAlloc.ReleaseID(VxlanVniPoolName, networkName)
 }
 
-// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
+// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
+// is not allocated yet for given network, it allocates the VRF table and returns its ID.
+func (n *IPNet) GetNetworkVrfID(networkName string) (vrf uint32, err error) {
+	return n.getOrAllocateVrfID(networkName)
+}
+
+// getOrAllocateVrfID returns the allocated VRF ID number for the given network.
 // Allocates a new VRF ID if not already allocated.
-func (n *IPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
+func (n *IPNet) getOrAllocateVrfID(networkName string) (vrf uint32, err error) {
 	// default pod network does not need any allocation
 	if n.isDefaultPodNetwork(networkName) {
 		return n.ContivConf.GetRoutingConfig().PodVRFID, nil
@@ -1421,7 +1427,7 @@ func (n *IPNet) routeToOtherNodeNetworks(network string, destNetwork *net.IPNet,
 		if n.isDefaultPodNetwork(network) {
 			route.VrfId = n.ContivConf.GetRoutingConfig().PodVRFID
 		} else {
-			route.VrfId, _ = n.GetOrAllocateVrfID(network)
+			route.VrfId, _ = n.getOrAllocateVrfID(network)
 		}
 	}
 	key = models.Key(route)

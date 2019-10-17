@@ -158,7 +158,7 @@ func (i *podIPInfo) String() string {
 
 // String provides human-readable representation of extIfIPInfo
 func (e *extIfIPInfo) String() string {
-	return fmt.Sprintf("<nodeID=%s, vppInterface=%s, ipNet=%s>", e.nodeID, e.vppInterface, e.ipNet)
+	return fmt.Sprintf("<nodeID=%v, vppInterface=%s, ipNet=%s>", e.nodeID, e.vppInterface, e.ipNet)
 }
 
 // Deps lists dependencies of the IPAM plugin.
