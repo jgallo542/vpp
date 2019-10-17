@@ -472,7 +472,8 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
-		var inputIfLogicalName, outputIfLogicalName string // interface names that will be use in VPP
+		inputIfLogicalName := inputIfCRDName   // interface name that will be use in VPP
+		outputIfLogicalName := outputIfCRDName // interface name that will be use in VPP
 		if sp.podMatchesSelector(pod, f.PodSelector) {
 			if deletedPod != nil && deletedPod.ID == podID {
 				continue
