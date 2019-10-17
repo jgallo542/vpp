@@ -472,7 +472,8 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 
 	// look for matching pods
 	for podID, pod := range sp.PodManager.GetPods() {
-		var inputIfLogicalName, outputIfLogicalName string // interface names that will be use in VPP
+		inputIfLogicalName := inputIfCRDName   // interface name that will be use in VPP
+		outputIfLogicalName := outputIfCRDName // interface name that will be use in VPP
 		if sp.podMatchesSelector(pod, f.PodSelector) {
 			if deletedPod != nil && deletedPod.ID == podID {
 				continue
@@ -503,13 +504,17 @@ func (sp *SFCProcessor) renderServiceFunctionPod(f *sfcmodel.ServiceFunctionChai
 			}
 
 			sfPods = append(sfPods, &renderer.PodSF{
-				ID:                        podID,
-				NodeID:                    nodeID,
-				Local:                     isLocal,
-				InputInterface:            inputIfLogicalName,
-				OutputInterface:           outputIfLogicalName,
-				InputInterfaceConfigName:  inputIfCRDName,
-				OutputInterfaceConfigName: outputIfCRDName,
+				ID:     podID,
+				NodeID: nodeID,
+				Local:  isLocal,
+				InputInterface: &renderer.InterfaceNames{
+					LogicalName: inputIfLogicalName,
+					CRDName:     inputIfCRDName,
+				},
+				OutputInterface: &renderer.InterfaceNames{
+					LogicalName: outputIfLogicalName,
+					CRDName:     outputIfCRDName,
+				},
 			})
 		}
 	}

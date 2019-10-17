@@ -177,7 +177,7 @@ func (rndr *Renderer) getLinkCustomIfIPNet(sfSelectable ServiceFunctionSelectabl
 	switch selectable := sfSelectable.(type) {
 	case *renderer.PodSF:
 		pod := selectable
-		return rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterfaceConfigName, customNetworkName)
+		return rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterface.CRDName, customNetworkName)
 	case *renderer.InterfaceSF:
 		extif := selectable
 		if ipNet := extif.IPNet(rndr.IPAM); ipNet != nil {
@@ -247,7 +247,7 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 		return config, errors.Wrapf(err,
 			"not all interfaces in SFC chain with name %v are in the same custom/default network", sfc.Name)
 	}
-	podVRFID, err := rndr.IPNet.GetOrAllocateVrfID(customNetworkName)
+	podVRFID, err := rndr.IPNet.GetNetworkVrfID(customNetworkName)
 	if err != nil {
 		return config, errors.Wrapf(err, "can't retrieve pod VRF ID for network %v", customNetworkName)
 	}
@@ -352,12 +352,12 @@ func (rndr *Renderer) checkCustomNetworkIntegrity(paths [][]ServiceFunctionSelec
 			switch selectable := sfSelectable.(type) {
 			case *renderer.PodSF:
 				customNetwork, err = rndr.checkNetworkForPodInterface(selectable.ID,
-					selectable.InputInterfaceConfigName, customNetwork)
+					selectable.InputInterface.CRDName, customNetwork)
 				if err != nil {
 					return "", err
 				}
 				customNetwork, err = rndr.checkNetworkForPodInterface(selectable.ID,
-					selectable.OutputInterfaceConfigName, customNetwork)
+					selectable.OutputInterface.CRDName, customNetwork)
 				if err != nil {
 					return "", err
 				}
@@ -440,7 +440,7 @@ func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunction
 			if link.Type == renderer.Pod {
 				path = append(path, link.Pods[i%len(link.Pods)])
 			} else {
-				path = append(path, link.ExternalInterfaces[0])
+				path = append(path, link.ExternalInterfaces[i%len(link.ExternalInterfaces)])
 			}
 		}
 		paths = append(paths, path)
@@ -532,15 +532,15 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	switch rndr.endPointType(sfc, customNetworkName) {
 	case l2DX2Endpoint:
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L2 service
-			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
-			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
+			OutgoingInterface: pod.InputInterface.LogicalName,  // outgoing interface for SR-proxy is input interface for service
+			IncomingInterface: pod.OutputInterface.LogicalName, // incoming interface for SR-proxy is output interface for service
 		}}
 	case l3Dx4Endpoint, l3Dx6Endpoint:
-		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterfaceConfigName, customNetworkName)
+		podInputIfIPNet := rndr.IPAM.GetPodCustomIfIP(pod.ID, pod.InputInterface.CRDName, customNetworkName)
 		localSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_AD{EndFunction_AD: &vpp_srv6.LocalSID_EndAD{ // L3 service
 			L3ServiceAddress:  podInputIfIPNet.IP.String(),
-			OutgoingInterface: pod.InputInterface,  // outgoing interface for SR-proxy is input interface for service
-			IncomingInterface: pod.OutputInterface, // incoming interface for SR-proxy is output interface for service
+			OutgoingInterface: pod.InputInterface.LogicalName,  // outgoing interface for SR-proxy is input interface for service
+			IncomingInterface: pod.OutputInterface.LogicalName, // incoming interface for SR-proxy is output interface for service
 		}}
 
 		if err := rndr.setARPForInputInterface(podInputIfIPNet, config, pod); err != nil {
@@ -558,10 +558,10 @@ func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controlle
 	switch sfSelectable := sfSelectable.(type) {
 	case *renderer.PodSF:
 		pod := sfSelectable
-		macAddress, err = rndr.podCustomIFPhysAddress(pod, pod.InputInterfaceConfigName)
+		macAddress, err = rndr.podCustomIFPhysAddress(pod, pod.InputInterface.CRDName)
 		if err != nil {
 			return errors.Wrapf(err, "can't retrieve physical(mac) address for custom interface %v "+
-				"on pod %v of sfc chain", pod.InputInterfaceConfigName, pod.ID)
+				"on pod %v of sfc chain", pod.InputInterface.CRDName, pod.ID)
 		}
 	case *renderer.InterfaceSF:
 		extIf := sfSelectable
