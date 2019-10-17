@@ -83,8 +83,6 @@ type customNetworkInfo struct {
 	config *customnetmodel.CustomNetwork
 	// list of local pods in custom network
 	localPods map[string]*podmanager.LocalPod
-	// list of local external interfaces in custom network
-	localExtInterfaces map[string]*extifmodel.ExternalInterface
 	// list of local interfaces (pod + external) in custom network
 	localInterfaces []string
 	// list of all pods in custom network
@@ -690,12 +688,11 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 	nw := n.customNetworks[nwConfig.Name]
 	if nw == nil {
 		nw = &customNetworkInfo{
-			config:             nwConfig,
-			localPods:          map[string]*podmanager.LocalPod{},
-			localExtInterfaces: map[string]*extifmodel.ExternalInterface{},
-			pods:               map[string]*podmanager.Pod{},
-			extInterfaces:      map[string]*extifmodel.ExternalInterface{},
-			interfaces:         map[string][]string{},
+			config:        nwConfig,
+			localPods:     map[string]*podmanager.LocalPod{},
+			pods:          map[string]*podmanager.Pod{},
+			extInterfaces: map[string]*extifmodel.ExternalInterface{},
+			interfaces:    map[string][]string{},
 		}
 		n.customNetworks[nwConfig.Name] = nw
 	} else {
@@ -777,7 +774,7 @@ func (n *IPNet) customNetworkConfig(nwConfig *customnetmodel.CustomNetwork, even
 			mergeConfiguration(config, podCfg)
 		}
 		// configure external interfaces that belong to this network
-		for _, extIf := range nw.localExtInterfaces {
+		for _, extIf := range nw.extInterfaces {
 			ifCfg, _, _ := n.externalInterfaceConfig(extIf, eventType)
 			mergeConfiguration(config, ifCfg)
 		}
@@ -835,11 +832,10 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podma
 	nw := n.customNetworks[customNwName]
 	if nw == nil {
 		nw = &customNetworkInfo{
-			localPods:          map[string]*podmanager.LocalPod{},
-			localExtInterfaces: map[string]*extifmodel.ExternalInterface{},
-			pods:               map[string]*podmanager.Pod{},
-			extInterfaces:      map[string]*extifmodel.ExternalInterface{},
-			interfaces:         map[string][]string{},
+			localPods:     map[string]*podmanager.LocalPod{},
+			pods:          map[string]*podmanager.Pod{},
+			extInterfaces: map[string]*extifmodel.ExternalInterface{},
+			interfaces:    map[string][]string{},
 		}
 		n.customNetworks[customNwName] = nw
 	}
@@ -851,9 +847,6 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podma
 
 			if localPod != nil {
 				nw.localPods[localPod.ID.String()] = localPod
-			}
-			if extIf != nil {
-				nw.localExtInterfaces[extIf.Name] = extIf
 			}
 		} else {
 			var key string
@@ -871,14 +864,14 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podma
 				nw.extInterfaces[extIf.Name] = extIf
 			}
 		}
+		if extIf != nil {
+			nw.extInterfaces[extIf.Name] = extIf
+		}
 	} else {
 		if cacheForLocal {
 			nw.localInterfaces = sliceRemove(nw.localInterfaces, ifName)
 			if localPod != nil {
 				delete(nw.localPods, localPod.ID.String())
-			}
-			if extIf != nil {
-				delete(nw.localExtInterfaces, extIf.Name)
 			}
 		} else {
 			var key string
@@ -894,6 +887,9 @@ func (n *IPNet) cacheCustomNetworkInterface(customNwName string, localPod *podma
 			if extIf != nil {
 				delete(nw.extInterfaces, extIf.Name)
 			}
+		}
+		if extIf != nil {
+			delete(nw.extInterfaces, extIf.Name)
 		}
 	}
 }
@@ -1536,18 +1532,14 @@ func nodeHasIPAddress(node *nodesync.Node) bool {
 // clone creates a deep copy of customNetworkInfo.
 func (cn *customNetworkInfo) clone() (i *customNetworkInfo) {
 	res := &customNetworkInfo{
-		config:             proto.Clone(cn.config).(*customnetmodel.CustomNetwork),
-		localPods:          map[string]*podmanager.LocalPod{},
-		localExtInterfaces: map[string]*extifmodel.ExternalInterface{},
-		pods:               map[string]*podmanager.Pod{},
-		extInterfaces:      map[string]*extifmodel.ExternalInterface{},
-		interfaces:         map[string][]string{},
+		config:        proto.Clone(cn.config).(*customnetmodel.CustomNetwork),
+		localPods:     map[string]*podmanager.LocalPod{},
+		pods:          map[string]*podmanager.Pod{},
+		extInterfaces: map[string]*extifmodel.ExternalInterface{},
+		interfaces:    map[string][]string{},
 	}
 	for k, v := range cn.localPods {
 		res.localPods[k] = v
-	}
-	for k, v := range cn.localExtInterfaces {
-		res.localExtInterfaces[k] = v
 	}
 	for _, v := range cn.localInterfaces {
 		cn.localInterfaces = append(cn.localInterfaces, v)
