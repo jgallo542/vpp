@@ -440,7 +440,7 @@ func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunction
 			if link.Type == renderer.Pod {
 				path = append(path, link.Pods[i%len(link.Pods)])
 			} else {
-				path = append(path, link.ExternalInterfaces[0])
+				path = append(path, link.ExternalInterfaces[i%len(link.ExternalInterfaces)])
 			}
 		}
 		paths = append(paths, path)
