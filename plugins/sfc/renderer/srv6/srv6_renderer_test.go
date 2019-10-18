@@ -496,7 +496,7 @@ func addPodCustomIf(podID podmodel.ID, ifName string, ip, mac string, fixture *F
 		PodName:      podID.Name,
 		PodNamespace: podID.Namespace,
 		CustomInterfaces: []*ipalloc.CustomPodInterface{
-			&ipalloc.CustomPodInterface{
+			{
 				Name:      ifName,
 				IpAddress: ip,
 				Network:   DefaultNetwork,
@@ -587,7 +587,7 @@ func addExternalInterface(name, vppInterface, extIfIPNet, mac string, nodeID uin
 	extIf := &extifmodel.ExternalInterface{
 		Name: name,
 		Nodes: []*extifmodel.ExternalInterface_NodeInterface{
-			&extifmodel.ExternalInterface_NodeInterface{
+			{
 				Node:             MasterLabel,
 				VppInterfaceName: vppInterface,
 				Ip:               extIfIPNet,

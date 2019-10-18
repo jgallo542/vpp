@@ -1023,7 +1023,7 @@ func (n *IPNet) vxlanBridgeDomain(network string) (key string, config *vpp_l2.Br
 		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomain_Interface{
 			{
-				Name: n.vxlanBVIInterfaceName(network),
+				Name:                    n.vxlanBVIInterfaceName(network),
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},

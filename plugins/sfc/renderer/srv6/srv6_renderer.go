@@ -273,7 +273,8 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 						// remote packet will arrive in mainVRF -> packet is in mainVRF
 						switch sfSelectable := sfSelectable.(type) {
 						case *renderer.PodSF:
-							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(iPNet.IP.To16()), podVRFID, config)
+							rndr.createRouteToPodVrf(rndr.IPAM.SidForSFCEndLocalsid(
+								iPNet.IP.To16()), podVRFID, config)
 						case *renderer.InterfaceSF:
 							if extIfIPNet := ipNet(sfSelectable, rndr.IPAM); extIfIPNet != nil {
 								sid := rndr.IPAM.SidForSFCExternalIfLocalsid(identifier(sfSelectable),
