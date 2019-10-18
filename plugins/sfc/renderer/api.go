@@ -19,9 +19,7 @@ package renderer
 
 import (
 	"fmt"
-	"net"
 
-	"github.com/contiv/vpp/plugins/ipam"
 	"github.com/contiv/vpp/plugins/ksr/model/pod"
 )
 
@@ -157,6 +155,12 @@ type PodSF struct {
 	OutputInterface *InterfaceNames // names of the interface using which the traffic leaves the pod
 }
 
+// String converts PodSF into a human-readable string.
+func (pod PodSF) String() string {
+	return fmt.Sprintf("{ID: %s, NodeID: %d, Local:%v, InputInterface: %s, OutputInterface:%s}",
+		pod.ID, pod.NodeID, pod.Local, pod.InputInterface, pod.OutputInterface)
+}
+
 // InterfaceNames is container for multiple names for one interface
 type InterfaceNames struct {
 	// LogicalName for local pods, LogicalName contain actual pod interface name which can be used for configuration
@@ -171,53 +175,6 @@ func (in InterfaceNames) String() string {
 	return fmt.Sprintf("<LogicalName: %s, CRDName: %s>", in.LogicalName, in.CRDName)
 }
 
-// IsLocal finds out whether this ServiceFunctionSelectable is local (pod/external interface)
-func (pod PodSF) IsLocal() bool {
-	return pod.Local
-}
-
-// Identifier provides unique identifier for this ServiceFunctionSelectable
-func (pod PodSF) Identifier() string {
-	return pod.ID.String()
-}
-
-// TypeID get type iodentifier of this ServiceFunctionSelectable
-func (pod PodSF) TypeID() string {
-	return "pod"
-}
-
-// NodeIdentifier provides identification of node where this ServiceFunctionSelectable is located
-func (pod PodSF) NodeIdentifier() uint32 {
-	return pod.NodeID
-}
-
-// IPNet provides IP address for this ServiceFunctionSelectable
-func (pod PodSF) IPNet(i ipam.API) *net.IPNet {
-	return i.GetPodIP(pod.ID)
-}
-
-// InInterface provides name of input interface for this ServiceFunctionSelectable
-func (pod PodSF) InInterface() string {
-	return pod.InputInterface.LogicalName
-}
-
-// OutInterface provides name of output interface for this ServiceFunctionSelectable
-func (pod PodSF) OutInterface() string {
-	return pod.OutputInterface.LogicalName
-}
-
-// SidEndLocalSid provides SID for this ServiceFunctionSelectable
-func (pod PodSF) SidEndLocalSid(i ipam.API, podVRF, mainVRF uint32) (net.IP, uint32) {
-	address := pod.IPNet(i).IP.To16()
-	return i.SidForSFCEndLocalsid(address), podVRF
-}
-
-// String converts PodSF into a human-readable string.
-func (pod PodSF) String() string {
-	return fmt.Sprintf("{ID: %s, NodeID: %d, Local:%v, InputInterface: %s, OutputInterface:%s}",
-		pod.ID, pod.NodeID, pod.Local, pod.InputInterface, pod.OutputInterface)
-}
-
 // InterfaceSF represents an interface-type service function.
 type InterfaceSF struct {
 	// InterfaceName contains name of the interface to/from which the traffic flows
@@ -227,49 +184,6 @@ type InterfaceSF struct {
 
 	NodeID uint32 // ID of the node where the interface resides
 	Local  bool   // true if this is a node-local interface
-}
-
-// IsLocal finds out whether this ServiceFunctionSelectable is local (pod/external interface)
-func (iface InterfaceSF) IsLocal() bool {
-	return iface.Local
-}
-
-// Identifier provides unique identifier for this ServiceFunctionSelectable
-func (iface InterfaceSF) Identifier() string {
-	return iface.InterfaceName
-}
-
-// TypeID get type iodentifier of this ServiceFunctionSelectable
-func (iface InterfaceSF) TypeID() string {
-	return "interface"
-}
-
-// NodeIdentifier provides identification of node where this ServiceFunctionSelectable is located
-func (iface InterfaceSF) NodeIdentifier() uint32 {
-	return iface.NodeID
-}
-
-// IPNet provides IP address for this ServiceFunctionSelectable
-func (iface InterfaceSF) IPNet(i ipam.API) *net.IPNet {
-	return i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeIdentifier())
-}
-
-// InInterface provides name of input interface for this ServiceFunctionSelectable
-func (iface InterfaceSF) InInterface() string {
-	return iface.InterfaceName
-}
-
-// OutInterface provides name of output interface for this ServiceFunctionSelectable
-func (iface InterfaceSF) OutInterface() string {
-	return iface.InterfaceName
-}
-
-// SidEndLocalSid provides SID for this ServiceFunctionSelectable
-func (iface InterfaceSF) SidEndLocalSid(i ipam.API, podVRF, mainVRF uint32) (net.IP, uint32) {
-	if ipNet := iface.IPNet(i); ipNet != nil {
-		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, ipNet.IP), podVRF // TODO Main?
-	}
-	return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, nil), podVRF // TODO Main?
 }
 
 // String converts InterfaceSF into a human-readable string.
