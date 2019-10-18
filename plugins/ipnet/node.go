@@ -1023,7 +1023,7 @@ func (n *IPNet) vxlanBridgeDomain(network string) (key string, config *vpp_l2.Br
 		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomain_Interface{
 			{
-				Name:                    n.vxlanBVIInterfaceName(network),
+				Name: n.vxlanBVIInterfaceName(network),
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
@@ -1574,14 +1574,22 @@ func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
 func (n *IPNet) notifyIpamExtIfChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
 	for _, node := range extIf.Nodes {
 		if nodeID, ok := n.getNodeID(node.Node); ok {
-			if _, ipNet, err := net.ParseCIDR(node.Ip); err == nil {
-				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ipNet, isDelete)
-				return
+			var ipNet *net.IPNet
+			if _, ipNet, _ := net.ParseCIDR(node.Ip); ipNet == nil {
+				if ip := net.ParseIP(node.Ip); ip != nil {
+					ipNet = &net.IPNet{IP: ip}
+				}
 			}
-		} else {
-			if ip := net.ParseIP(node.Ip); ip != nil {
-				ipNet := &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}
-				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ipNet, isDelete)
+			if ipNet != nil {
+				if ipNet.Mask == nil {
+					if isIPv6(ipNet.IP) {
+						ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
+					} else {
+						ipNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
+					}
+				}
+				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName,
+					nodeID, ipNet, isDelete)
 				return
 			}
 		}
