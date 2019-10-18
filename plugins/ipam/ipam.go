@@ -1306,13 +1306,12 @@ func (i *IPAM) combineMultipleIPAddresses(ipAddresses ...*ipWithPositionableMask
 
 // computeSFCID creates 128-bit SFC ID from SFC name
 func (i *IPAM) computeSFCID(sfcName string) net.IP {
-	h := sha256.New()
-	h.Write([]byte(sfcName))
-	return h.Sum(nil)[:16]
+	return hashString(sfcName)
 }
 
+// computeExtIfID creates 128-bit External Interface ID from it's name
 func (i *IPAM) computeExtIfID(extIfName string) net.IP {
-	return i.computeSFCID(extIfName)
+	return hashString(extIfName)
 }
 
 // computeSID creates SID by applying network prefix from <prefixNetwork> to IP <ip>
@@ -1451,4 +1450,11 @@ func customIfID(ifName, network string) string {
 		return ifName
 	}
 	return ifName + "/" + network
+}
+
+// hashString creates 128-bit ID from string
+func hashString(s string) net.IP {
+	h := sha256.New()
+	h.Write([]byte(s))
+	return h.Sum(nil)[:16]
 }
