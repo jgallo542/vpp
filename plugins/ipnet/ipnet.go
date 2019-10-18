@@ -431,3 +431,19 @@ func (n *IPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (str
 	return "", errors.Errorf("couldn't find any custom network that custom interface %v in pod %v "+
 		"belongs to (Custom networks: %v)", ifName, podID, n.customNetworks)
 }
+
+// GetExternalIfNetworkName returns the name of custom network which should contain given
+// external interface or error otherwise.
+func (n *IPNet) GetExternalIfNetworkName(ifName string) (string, error) {
+	for name, info := range n.customNetworks {
+		if extIf, exists := info.extInterfaces[ifName]; exists {
+			for _, intf := range info.interfaces[extIf.Name] {
+				if ifName == intf {
+					return name, nil
+				}
+			}
+		}
+	}
+	return "", errors.Errorf("couldn't find any custom network that external interface %v "+
+		"belongs to (Custom networks: %v)", ifName, n.customNetworks)
+}

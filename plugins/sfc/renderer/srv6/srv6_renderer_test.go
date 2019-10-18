@@ -76,6 +76,8 @@ const (
 	// PodVrfID is id of pod vrf table
 	PodVrfID = 1
 
+	DefaultNetwork = "default"
+
 	SFCName = "chain"
 
 	podSelectorKey       = "sf"
@@ -342,6 +344,10 @@ func initFixture(fixture *Fixture) {
 	Expect(fixture.IPAM.Init()).ShouldNot(HaveOccurred())
 	Expect(fixture.IPAM.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
 
+	// IPNet plugin
+	fixture.IPNet = NewMockIPNet()
+	fixture.IPNet.SetNetworkVrfID(DefaultNetwork, 1)
+
 	// podmanager
 	fixture.PodManager = NewMockPodManager()
 
@@ -450,8 +456,8 @@ func sfcModel(sfc *renderer.ContivSFC) *sfcmodel.ServiceFunctionChain {
 		case renderer.Pod:
 			newSF.Type = sfcmodel.ServiceFunctionChain_ServiceFunction_Pod
 			newSF.PodSelector = map[string]string{podSelectorKey: podSelectorValPrefix + strconv.Itoa(i)}
-			newSF.InputInterface = link.Pods[0].InputInterfaceConfigName
-			newSF.OutputInterface = link.Pods[0].OutputInterfaceConfigName
+			newSF.InputInterface = link.Pods[0].InputInterface.CRDName
+			newSF.OutputInterface = link.Pods[0].OutputInterface.CRDName
 		case renderer.ExternalInterface:
 			newSF.Type = sfcmodel.ServiceFunctionChain_ServiceFunction_ExternalInterface
 			newSF.Interface = link.ExternalInterfaces[0].InterfaceName
@@ -493,6 +499,7 @@ func addPodCustomIf(podID podmodel.ID, ifName string, ip, mac string, fixture *F
 			&ipalloc.CustomPodInterface{
 				Name:      ifName,
 				IpAddress: ip,
+				Network:   DefaultNetwork,
 			},
 		},
 	}
@@ -509,6 +516,8 @@ func addPodCustomIf(podID podmodel.ID, ifName string, ip, mac string, fixture *F
 	}
 
 	fixture.ConfigRetriever.AddConfig(linux_interfaces.InterfaceKey(ifName), linuxIf)
+
+	fixture.IPNet.SetGetPodCustomIfNetworkName(podID, ifName, DefaultNetwork)
 
 	_, err := fixture.IPAM.Update(ev, nil)
 	Expect(err).To(BeNil())
@@ -593,6 +602,8 @@ func addExternalInterface(name, vppInterface, extIfIPNet, mac string, nodeID uin
 
 	fixture.ConfigRetriever.AddConfig(vpp_interfaces.InterfaceKey(vppInterface), vppIf)
 
+	fixture.IPNet.SetGetExternalIfNetworkName(vppInterface, DefaultNetwork)
+
 	if _, ipNet, err := net.ParseCIDR(extIfIPNet); err == nil && ipNet != nil {
 		fixture.IPAM.UpdateExternalInterfaceIPInfo(name, vppInterface, nodeID, ipNet, false)
 		extIf.Type = extifmodel.ExternalInterface_L3
@@ -643,7 +654,10 @@ func getOneNodePodToPodChain() (sfc *renderer.ContivSFC) {
 		ID:     pod1ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName: pod1InputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod1InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{},
 	}
 	sf1 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -654,8 +668,12 @@ func getOneNodePodToPodChain() (sfc *renderer.ContivSFC) {
 		ID:     pod2ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName:  pod2InputInterfaceName,
-		OutputInterfaceConfigName: pod2OutputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod2InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{
+			CRDName: pod2OutputInterfaceName,
+		},
 	}
 	sf2 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -666,8 +684,12 @@ func getOneNodePodToPodChain() (sfc *renderer.ContivSFC) {
 		ID:     pod3ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName:  pod3InputInterfaceName,
-		OutputInterfaceConfigName: pod3OutputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod3InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{
+			CRDName: pod3OutputInterfaceName,
+		},
 	}
 	sf3 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -678,7 +700,10 @@ func getOneNodePodToPodChain() (sfc *renderer.ContivSFC) {
 		ID:     pod4ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName: pod4InputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod4InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{},
 	}
 	sf4 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -744,7 +769,10 @@ func getOneNodePodToInterfaceChain() (sfc *renderer.ContivSFC) {
 		ID:     pod1ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName: pod1InputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod1InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{},
 	}
 	sf1 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -755,8 +783,12 @@ func getOneNodePodToInterfaceChain() (sfc *renderer.ContivSFC) {
 		ID:     pod2ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName:  pod2InputInterfaceName,
-		OutputInterfaceConfigName: pod2OutputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod2InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{
+			CRDName: pod2OutputInterfaceName,
+		},
 	}
 	sf2 := &renderer.ServiceFunction{
 		Type: renderer.Pod,
@@ -767,8 +799,12 @@ func getOneNodePodToInterfaceChain() (sfc *renderer.ContivSFC) {
 		ID:     pod3ID(),
 		NodeID: MasterID,
 		Local:  true,
-		InputInterfaceConfigName:  pod3InputInterfaceName,
-		OutputInterfaceConfigName: pod3OutputInterfaceName,
+		InputInterface: &renderer.InterfaceNames{
+			CRDName: pod3InputInterfaceName,
+		},
+		OutputInterface: &renderer.InterfaceNames{
+			CRDName: pod3OutputInterfaceName,
+		},
 	}
 	sf3 := &renderer.ServiceFunction{
 		Type: renderer.Pod,

@@ -44,6 +44,10 @@ type API interface {
 	// pod custom interface or error otherwise. This supports both type of pods, remote and local
 	GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error)
 
+	// GetExternalIfNetworkName returns the name of custom network which should contain given
+	// external interface or error otherwise.
+	GetExternalIfNetworkName(ifName string) (string, error)
+
 	// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
 	// is not allocated yet for given network, it allocates the VRF table and returns its ID.
 	GetNetworkVrfID(networkName string) (vrf uint32, err error)

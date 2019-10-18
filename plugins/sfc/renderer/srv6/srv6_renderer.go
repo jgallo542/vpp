@@ -362,8 +362,11 @@ func (rndr *Renderer) checkCustomNetworkIntegrity(paths [][]ServiceFunctionSelec
 					return "", err
 				}
 			case *renderer.InterfaceSF:
-				// TODO support external interfaces
-				return "", errors.Errorf("external interfaces are not yet supported")
+				customNetwork, err = rndr.checkNetworkForExternalInterface(selectable.InterfaceName,
+					customNetwork)
+				if err != nil {
+					return "", err
+				}
 			default:
 				return "", errors.Errorf("unknown type of "+
 					"ServiceFunctionSelectable: %#v", sfSelectable)
@@ -386,6 +389,25 @@ func (rndr *Renderer) checkNetworkForPodInterface(podID pod.ID, intf string, cus
 		if ifNetwork != customNetwork {
 			return "", errors.Errorf("interface %v from pod %v belongs to network %v, "+
 				"but it should be in network %v as other interfaces from SFC chain", intf, podID,
+				ifNetwork, customNetwork)
+		}
+	}
+	return customNetwork, nil
+}
+
+func (rndr *Renderer) checkNetworkForExternalInterface(intf string, customNetwork string) (string, error) {
+	if strings.TrimSpace(intf) != "" {
+		ifNetwork, err := rndr.IPNet.GetExternalIfNetworkName(intf)
+		if err != nil {
+			return "", errors.Wrapf(err, "can't verify that interface %v is "+
+				"in custom network interface where all SFC chain interfaces should be", intf)
+		}
+		if customNetwork == "" { // network is not set yet
+			customNetwork = ifNetwork
+		}
+		if ifNetwork != customNetwork {
+			return "", errors.Errorf("interface %v belongs to network %v, "+
+				"but it should be in network %v as other interfaces from SFC chain", intf,
 				ifNetwork, customNetwork)
 		}
 	}

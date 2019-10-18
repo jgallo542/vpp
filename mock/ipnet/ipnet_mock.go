@@ -31,21 +31,23 @@ const (
 type MockIPNet struct {
 	sync.Mutex
 
-	podIf                 map[podmodel.ID]string
-	networkToVRFID        map[string]uint32
-	podInterfaceToNetwork map[string]string
-	hostIPs               []net.IP
-	nodeIP                *net.IPNet
-	hostInterconnect      string
-	vxlanBVIIfName        string
+	podIf                      map[podmodel.ID]string
+	networkToVRFID             map[string]uint32
+	podInterfaceToNetwork      map[string]string
+	externalInterfaceToNetwork map[string]string
+	hostIPs                    []net.IP
+	nodeIP                     *net.IPNet
+	hostInterconnect           string
+	vxlanBVIIfName             string
 }
 
 // NewMockIPNet is a constructor for MockIPNet.
 func NewMockIPNet() *MockIPNet {
 	return &MockIPNet{
-		podIf:                 make(map[podmodel.ID]string),
-		networkToVRFID:        make(map[string]uint32),
-		podInterfaceToNetwork: make(map[string]string),
+		podIf:                      make(map[podmodel.ID]string),
+		networkToVRFID:             make(map[string]uint32),
+		podInterfaceToNetwork:      make(map[string]string),
+		externalInterfaceToNetwork: make(map[string]string),
 	}
 }
 
@@ -78,9 +80,14 @@ func (mn *MockIPNet) SetHostIPs(ips []net.IP) {
 	mn.hostIPs = ips
 }
 
-// SetNetworkVrfID sets VRF table ID to network name that it should belong to.
+// SetGetPodCustomIfNetworkName sets network name that pod custom interface belongs to.
 func (mn *MockIPNet) SetGetPodCustomIfNetworkName(podID podmodel.ID, ifName string, networkName string) {
 	mn.podInterfaceToNetwork[fmt.Sprintf("%s/%s", podID.String(), ifName)] = networkName
+}
+
+// SetGetExternalIfNetworkName sets network name that external interface belongs to.
+func (mn *MockIPNet) SetGetExternalIfNetworkName(ifName string, networkName string) {
+	mn.externalInterfaceToNetwork[ifName] = networkName
 }
 
 // SetNetworkVrfID sets VRF table ID to network name that it should belong to.
@@ -161,6 +168,12 @@ func (mn *MockIPNet) GetHostIPs() []net.IP {
 // pod custom interface or error otherwise. This supports both type of pods, remote and local
 func (mn *MockIPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
 	return mn.podInterfaceToNetwork[fmt.Sprintf("%s/%s", podID.String(), ifName)], nil
+}
+
+// GetExternalIfNetworkName returns the name of custom network which should contain given
+// external interface or error otherwise.
+func (mn *MockIPNet) GetExternalIfNetworkName(ifName string) (string, error) {
+	return mn.externalInterfaceToNetwork[ifName], nil
 }
 
 // GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
