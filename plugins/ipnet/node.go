@@ -1563,3 +1563,27 @@ func (cn *customNetworkInfo) clone() (i *customNetworkInfo) {
 	}
 	return res
 }
+
+// getNodeID get ID of specified node
+func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
+	if node, exists := n.NodeSync.GetAllNodes()[nodeName]; exists {
+		return node.ID, true
+	}
+	return 0, false
+}
+func (n *IPNet) notifyIpamExtIfChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
+	for _, node := range extIf.Nodes {
+		if nodeID, ok := n.getNodeID(node.Node); ok {
+			if _, ipNet, err := net.ParseCIDR(node.Ip); err == nil {
+				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ipNet, isDelete)
+				return
+			}
+		} else {
+			if ip := net.ParseIP(node.Ip); ip != nil {
+				ipNet := &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)}
+				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName, nodeID, ipNet, isDelete)
+				return
+			}
+		}
+	}
+}

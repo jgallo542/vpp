@@ -1245,8 +1245,7 @@ func (i *IPAM) UpdateExternalInterfaceIPInfo(extif, vppInterface string, nodeID 
 				}
 			}
 			if ind >= 0 { // found entry, erase it
-				ipInfos[ind] = ipInfos[len(ipInfos)-1]
-				ipInfos = ipInfos[:len(ipInfos)-1]
+				ipInfos = append(ipInfos[0:ind], ipInfos[ind+1:]...)
 			}
 			if len(ipInfos) <= 0 { // no more ip infos, delete
 				delete(i.extIfToIPNet, extif)
