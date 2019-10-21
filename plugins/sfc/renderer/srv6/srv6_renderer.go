@@ -212,7 +212,6 @@ func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC, customNetworkName st
 func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs, err error) {
 	// TODO support external interfaces across whole renderer
 	// TODO remove all debug logging later
-	rndr.Log.Debugf("[DEBUG]sfc: %v", sfc)
 
 	// SFC configuration correctness checks
 	config = make(controller.KeyValuePairs)
@@ -780,7 +779,6 @@ func (rndr *Renderer) createSteerings(localStartSfSelectables []ServiceFunctionS
 					},
 				},
 			}
-			rndr.Log.Debugf("[DEBUG] l2 steering: %v", steering)
 			config[models.Key(steering)] = steering
 		}
 	case l3Dx6Endpoint, l3Dx4Endpoint:
