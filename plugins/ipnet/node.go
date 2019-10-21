@@ -1574,22 +1574,22 @@ func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
 func (n *IPNet) notifyIpamExtIfChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
 	for _, node := range extIf.Nodes {
 		if nodeID, ok := n.getNodeID(node.Node); ok {
-			var ipNet *net.IPNet
-			if _, ipNet, _ := net.ParseCIDR(node.Ip); ipNet == nil {
+			_, nodeIPNet, err := net.ParseCIDR(node.Ip)
+			if err != nil {
 				if ip := net.ParseIP(node.Ip); ip != nil {
-					ipNet = &net.IPNet{IP: ip}
+					nodeIPNet = &net.IPNet{IP: ip}
 				}
 			}
-			if ipNet != nil {
-				if ipNet.Mask == nil {
-					if isIPv6(ipNet.IP) {
-						ipNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
+			if nodeIPNet != nil {
+				if nodeIPNet.Mask == nil {
+					if isIPv6(nodeIPNet.IP) {
+						nodeIPNet.Mask = net.CIDRMask(net.IPv6len*8, net.IPv6len*8)
 					} else {
-						ipNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
+						nodeIPNet.Mask = net.CIDRMask(net.IPv4len*8, net.IPv4len*8)
 					}
 				}
 				n.IPAM.UpdateExternalInterfaceIPInfo(extIf.Name, node.VppInterfaceName,
-					nodeID, ipNet, isDelete)
+					nodeID, nodeIPNet, isDelete)
 				return
 			}
 		}
