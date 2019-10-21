@@ -1180,18 +1180,18 @@ func (i *IPAM) BsidForSFCPolicy(sfcName string) net.IP {
 
 // SidForSFCExternalIfLocalsid creates a valid SRv6 SID for external interface
 func (i *IPAM) SidForSFCExternalIfLocalsid(externalIfName string, externalIfIP net.IP) net.IP {
+	var ip net.IP
 	if externalIfIP != nil {
-		return i.SidForSFCEndLocalsid(externalIfIP)
+		ip = i.SidForSFCEndLocalsid(externalIfIP)
+	} else {
+		ip = i.computeExtIfID(externalIfName)
 	}
 
 	prefix := i.ContivConf.GetIPAMConfig().SRv6Settings.SFCEndLocalSIDSubnetCIDR
 	prefixMaskSize, _ := prefix.Mask.Size()
-
-	extIfID := i.computeExtIfID(externalIfName)
 	return i.combineMultipleIPAddresses(
 		newIPWithPositionableMaskFromIPNet(prefix),
-		newIPWithPositionableMask(extIfID, prefixMaskSize, 128-prefixMaskSize))
-
+		newIPWithPositionableMask(ip, prefixMaskSize, 128-prefixMaskSize))
 }
 
 // SidForSFCServiceFunctionLocalsid creates a valid SRv6 SID for locasid leading to pod of service function given by
