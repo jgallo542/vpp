@@ -165,6 +165,7 @@ const (
 	l3Dx6Endpoint
 )
 
+// getLinkCustomIfIPNet retrieves IP address (with mask) of SFSelectable's custom interface
 func (rndr *Renderer) getLinkCustomIfIPNet(sfSelectable ServiceFunctionSelectable,
 	customNetworkName string) (endLinkCustomIfIPNet *net.IPNet) {
 	switch selectable := sfSelectable.(type) {
@@ -190,6 +191,7 @@ func isIPv6(ip net.IP) bool {
 	return strings.Contains(ip.String(), ":")
 }
 
+// endPointType provides identification of layer(and IP address fanily) for interfaces of given SFC chain
 func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC, customNetworkName string) int {
 	// if end pond IP address is nil, then we use l2endpoint
 	endSfSelectable := getEndLinkSfSelectable(sfc)
@@ -370,6 +372,7 @@ func (rndr *Renderer) checkCustomNetworkIntegrity(paths [][]ServiceFunctionSelec
 	return
 }
 
+// checkNetworkForPodInterface asserts that pod interface belongs to given <customNetwork>
 func (rndr *Renderer) checkNetworkForPodInterface(podID pod.ID, intf string, customNetwork string) (string, error) {
 	if strings.TrimSpace(intf) != "" {
 		ifNetwork, err := rndr.IPNet.GetPodCustomIfNetworkName(podID, intf)
