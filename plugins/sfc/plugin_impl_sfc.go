@@ -70,6 +70,7 @@ type Deps struct {
 	ConfigRetriever controller.ConfigRetriever
 }
 
+// useL2xconnRenderer initialize and register L2xconnRenderer as the only usable SFC chain renderer
 func (p *Plugin) useL2xconnRenderer() {
 	p.l2xconnRenderer = &l2xconn.Renderer{
 		Deps: l2xconn.Deps{
@@ -95,6 +96,7 @@ func (p *Plugin) useL2xconnRenderer() {
 	p.processor.RegisterRenderer(p.l2xconnRenderer)
 }
 
+// useSRv6Renderer initialize and register SRv6Renderer as the only usable SFC chain renderer
 func (p *Plugin) useSRv6Renderer() {
 	p.srv6Renderer = &srv6.Renderer{
 		Deps: srv6.Deps{

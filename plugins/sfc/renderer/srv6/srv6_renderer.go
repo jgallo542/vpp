@@ -387,6 +387,7 @@ func (rndr *Renderer) checkNetworkForPodInterface(podID pod.ID, intf string, cus
 	return customNetwork, nil
 }
 
+// checkNetworkForExternalInterface asserts that external interface belongs to given <customNetwork>
 func (rndr *Renderer) checkNetworkForExternalInterface(intf string, customNetwork string) (string, error) {
 	if strings.TrimSpace(intf) != "" {
 		ifNetwork, err := rndr.IPNet.GetExternalIfNetworkName(intf)
@@ -535,6 +536,7 @@ func (rndr *Renderer) toStringSlice(chain []*renderer.ServiceFunction) []string 
 	return result
 }
 
+// createInnerLinkLocalsids creates configuration for Localsids of inner links of SFC chain and adds it to the <config>
 func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *renderer.PodSF, servicePodIP net.IP,
 	customNetworkName string, podVRFID uint32, config controller.KeyValuePairs) error {
 	localSID := &vpp_srv6.LocalSID{
@@ -568,6 +570,7 @@ func (rndr *Renderer) createInnerLinkLocalsids(sfc *renderer.ContivSFC, pod *ren
 	return nil
 }
 
+// setARPForInputInterface adds ARP/Neighbor entries for interface of given <sfSelectable>
 func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controller.KeyValuePairs,
 	sfSelectable ServiceFunctionSelectable) error {
 	var macAddress string
@@ -598,6 +601,8 @@ func (rndr *Renderer) setARPForInputInterface(ipNet *net.IPNet, config controlle
 	config[models.Key(arpTable)] = arpTable
 	return nil
 }
+
+// extIfPhysAddress retrieves physical(MAC) address of given external interface
 func (rndr *Renderer) extIfPhysAddress(extIf *renderer.InterfaceSF) (string, error) {
 	val := rndr.ConfigRetriever.GetConfig(vpp_interfaces.InterfaceKey(extIf.VppInterfaceName))
 	if val == nil {
@@ -613,6 +618,7 @@ func (rndr *Renderer) extIfPhysAddress(extIf *renderer.InterfaceSF) (string, err
 	return vppInterface.PhysAddress, nil
 }
 
+// podCustomIFPhysAddress retrives physical(MAC) address of custom interface on pod
 func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName string) (string, error) {
 	_, linuxIfName, exists := rndr.IPNet.GetPodCustomIfNames(pod.ID.Namespace, pod.ID.Name, customIFName)
 	if !exists {
@@ -630,6 +636,7 @@ func (rndr *Renderer) podCustomIFPhysAddress(pod *renderer.PodSF, customIFName s
 	return linuxInterface.PhysAddress, nil
 }
 
+// createEndLinkLocalsid creates configuration for localsid of last link in SFC chain and adds it to <config>
 func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetworkName string, podVRFID uint32,
 	config controller.KeyValuePairs, endSfSelectable ServiceFunctionSelectable) error {
 	sid, installationVrfID := sidEndLocalSid(endSfSelectable, rndr.IPAM, podVRFID,
@@ -676,14 +683,17 @@ func (rndr *Renderer) createEndLinkLocalsid(sfc *renderer.ContivSFC, customNetwo
 	return nil
 }
 
+// createRouteToPodVrf creates route from main VRF table to given pod VRF table for given <steeringIP> address
 func (rndr *Renderer) createRouteToPodVrf(steeredIP net.IP, podVRFID uint32, config controller.KeyValuePairs) {
 	rndr.createRouteBetweenVrfTables(rndr.ContivConf.GetRoutingConfig().MainVRFID, podVRFID, steeredIP, config)
 }
 
+// createRouteToMainVrf creates route from given pod VRF table to main VRF table for given <steeringIP> address
 func (rndr *Renderer) createRouteToMainVrf(steeredIP net.IP, podVRFID uint32, config controller.KeyValuePairs) {
 	rndr.createRouteBetweenVrfTables(podVRFID, rndr.ContivConf.GetRoutingConfig().MainVRFID, steeredIP, config)
 }
 
+// createRouteBetweenVrfTables creates route from one VRF table to another VRF table for given <steeringIP> address
 func (rndr *Renderer) createRouteBetweenVrfTables(fromVrf, toVrf uint32, steeredIP net.IP,
 	config controller.KeyValuePairs) {
 	route := &vpp_l3.Route{
@@ -757,6 +767,7 @@ func (rndr *Renderer) createPolicy(paths [][]ServiceFunctionSelectable, sfc *ren
 	return nil
 }
 
+// createSteerings creates configuration for SFC chain SRv6 steering and adds it to config
 func (rndr *Renderer) createSteerings(localStartSfSelectables []ServiceFunctionSelectable, sfc *renderer.ContivSFC,
 	bsid net.IP, customNetworkName string, podVRFID uint32, config controller.KeyValuePairs) {
 	switch rndr.endPointType(sfc, customNetworkName) {
@@ -795,6 +806,7 @@ func (rndr *Renderer) createSteerings(localStartSfSelectables []ServiceFunctionS
 	}
 }
 
+// localSfSelectables retrieves all ServiceFunctionSelectable that are on this node
 func (rndr *Renderer) localSfSelectables(sf *renderer.ServiceFunction) []ServiceFunctionSelectable {
 	localSfSelectables := make([]ServiceFunctionSelectable, 0)
 	for _, pod := range sf.Pods {
@@ -810,6 +822,7 @@ func (rndr *Renderer) localSfSelectables(sf *renderer.ServiceFunction) []Service
 	return localSfSelectables
 }
 
+// getEndLinkSfSelectable retrieves ServiceFunctionSelectable from last link
 func getEndLinkSfSelectable(sfc *renderer.ContivSFC) ServiceFunctionSelectable {
 	if sfc.Chain[len(sfc.Chain)-1].Type == renderer.Pod {
 		return sfc.Chain[len(sfc.Chain)-1].Pods[0]
