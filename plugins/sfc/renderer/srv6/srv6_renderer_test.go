@@ -56,6 +56,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// Node is identifier for nodes
 type Node int
 
 const (
@@ -72,11 +73,6 @@ const (
 	WorkerLabel = "worker"
 	// WorkerID is node ID of worker
 	WorkerID = uint32(2)
-
-	// Namespace1 is first testing namespace
-	Namespace1 = "default"
-	// Namespace2 is second testing namespace
-	Namespace2 = "another-ns"
 
 	// MainVrfID is id of main vrf table
 	MainVrfID = 0
@@ -119,11 +115,6 @@ const (
 	pod3InputIfMAC  = "00:00:00:00:03:01"
 	pod3OutputIfMAC = "00:00:00:00:03:02"
 	pod4InputIfMAC  = "00:00:00:00:04:01"
-
-	startExtIfName    = "startExtIf"
-	startExtIfVppName = "vpp-if1"
-	startExtIfIPNet   = "2001::1:0:0:1:1/128"
-	startExtIfMAC     = "00:00:00:00:00:01"
 
 	endExtIfName    = "endExtIf"
 	endExtIfVppName = "vpp-if2"
@@ -175,6 +166,7 @@ var (
 	}
 )
 
+// Fixture is test fixture with all dependencies needed for running tests
 type Fixture struct {
 	SFCProcessor     *processor.SFCProcessor
 	renderer         *srv6.Renderer
@@ -201,35 +193,36 @@ type sfcConfig struct {
 }
 
 // TestCreatePodToPodIPV6Chain tests simple IPv6 Pod-to-Pod
-// service function chain Master:|Pod -> Pod| -> Worker:|Pod -> Pod|
+// service function chain (Master:|Pod -> Pod| -> Worker:|Pod -> Pod|)
 func TestCreatePodToPodIPV6Chain(t *testing.T) {
 	RegisterTestingT(t)
 
 	fixture := newFixture("TestCreatePodToPodIPV6Chain")
 
-	// Master Config
-	masterConfig := expectedPodToPodConfig(Master, 6, fixture)
+	// Checking configuration on master node
+	masterConfig := expectedPodToPodConfig(Master, fixture)
 	assertConfig(false, masterConfig, fixture)
 	setupPodToPodChain(Master, 6, fixture)
 	assertConfig(true, masterConfig, fixture)
 
-	initFixture(fixture)
+	initFixture(fixture) // reset fixture to be able to check worker node
 
-	// Worker Config
-	workerConfig := expectedPodToPodConfig(Worker, 6, fixture)
+	// Checking configuration on worker node
+	workerConfig := expectedPodToPodConfig(Worker, fixture)
 	assertConfig(false, workerConfig, fixture)
 	setupPodToPodChain(Worker, 6, fixture)
 	assertConfig(true, workerConfig, fixture)
 }
 
-// TestDeletePodToPodIPV6Chain
+// TestDeletePodToPodIPV6Chain tests SFC chain removal for
+// simple IPv6 Pod-to-Pod service function chain (Master:|Pod -> Pod| -> Worker:|Pod -> Pod|)
 func TestDeletePodToPodIPV6Chain(t *testing.T) {
 	RegisterTestingT(t)
 
 	fixture := newFixture("TestDeletePodToPodIPV6Chain")
 
-	// Master Config
-	masterConfig := expectedPodToPodConfig(Master, 6, fixture)
+	// Checking configuration removal on master node
+	masterConfig := expectedPodToPodConfig(Master, fixture)
 	setupPodToPodChain(Master, 6, fixture)
 	// remove for not enough pods
 	removePod(pod1ID(), pod1IP, 0, fixture)
@@ -240,10 +233,10 @@ func TestDeletePodToPodIPV6Chain(t *testing.T) {
 	removeSFC(sfc, fixture)
 	assertConfig(false, masterConfig, fixture)
 
-	initFixture(fixture)
+	initFixture(fixture) // reset fixture to be able to check worker node
 
-	// Worker Config
-	workerConfig := expectedPodToPodConfig(Worker, 6, fixture)
+	// Checking configuration removal on worker node
+	workerConfig := expectedPodToPodConfig(Worker, fixture)
 	setupPodToPodChain(Worker, 6, fixture)
 	// remove for not enough pods
 	removePod(pod3ID(), pod3IP, 0, fixture)
@@ -255,24 +248,7 @@ func TestDeletePodToPodIPV6Chain(t *testing.T) {
 	assertConfig(false, workerConfig, fixture)
 }
 
-/*
-// TestCreatePodToInterfaceIPV6Chain
-func TestCreatePodToInterfaceIPV6Chain(t *testing.T) {
-	RegisterTestingT(t)
-
-	fixture := newFixture("TestCreatePodToInterfaceIPV6Chain")
-}
-
-// TestDeletePodToInterfaceIPv6Chain
-func TestDeletePodToInterfaceIPv6Chain(t *testing.T) {
-	RegisterTestingT(t)
-
-	fixture := newFixture("TestDeletePodToInterfaceIPv6Chain")
-}
-*/
-
 func assertConfig(exists bool, c *sfcConfig, fixture *Fixture) {
-
 	if c.Localsids != nil {
 		for _, localsid := range c.Localsids {
 			if exists {
@@ -763,7 +739,9 @@ func setupPodToPodChain(node Node, ipVer uint32, fixture *Fixture) *renderer.Con
 	return sfc
 }
 
-func expectedPodToPodConfig(node Node, ipVer uint32, fixture *Fixture) *sfcConfig {
+// TODO test also non-SRv6 related configurations (routes,...)
+// expectedPodToPodConfig computes all SRv6 components that are expected to appear from SRv6 renderer
+func expectedPodToPodConfig(node Node, fixture *Fixture) *sfcConfig {
 	// expected configuration
 	localSID1 := sfLocalSID(pod2IP, pod2InputIfIP, pod2InputInterfaceName, pod2OutputInterfaceName, fixture)
 	localSID2 := sfLocalSID(pod3IP, pod3InputIfIP, pod3InputInterfaceName, pod3OutputInterfaceName, fixture)
@@ -777,7 +755,7 @@ func expectedPodToPodConfig(node Node, ipVer uint32, fixture *Fixture) *sfcConfi
 
 		endIPNet := net.IPNet{IP: net.ParseIP(pod4InputIfIP), Mask: net.CIDRMask(128, 128)}
 		l3Steering := steering(fixture.IPAM.BsidForSFCPolicy(SFCName).String(), "", endIPNet.String())
-		return &sfcConfig{
+		return &sfcConfig{ // Expected worker config
 			Policy:   policy,
 			Steering: l3Steering,
 			Localsids: []*vpp_srv6.LocalSID{
@@ -785,7 +763,8 @@ func expectedPodToPodConfig(node Node, ipVer uint32, fixture *Fixture) *sfcConfi
 			},
 		}
 	}
-	return &sfcConfig{
+
+	return &sfcConfig{ // Expected worker config
 		Localsids: []*vpp_srv6.LocalSID{
 			localSID2,
 			localSID3,
