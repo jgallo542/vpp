@@ -28,9 +28,8 @@ data:
     useDX6ForSrv6NodetoNodeTransport: false
     useTAPInterfaces: true
     tapInterfaceVersion: 2
-    tapv2RxRingSize: 256
-    tapv2TxRingSize: 256
-    enableGSO: true
+    vmxnet3RxRingSize: 1024
+    vmxnet3TxRingSize: 1024
     tcpChecksumOffloadDisabled: true
     STNVersion: 2
     natExternalTraffic: true
@@ -64,15 +63,15 @@ data:
         sfcIDLengthUsedInSidForServiceFunction: 16
   controller.conf: |
     enableRetry: true
-    delayRetry: 1000000000
+    delayRetry: 0
     maxRetryAttempts: 3
     enableExpBackoffRetry: true
-    delayLocalResync: 5000000000
-    startupResyncDeadline: 30000000000
+    delayLocalResync: 0
+    startupResyncDeadline: 0
     enablePeriodicHealing: false
-    periodicHealingInterval: 30000000000
-    delayAfterErrorHealing: 5000000000
-    remoteDBProbingInterval: 3000000000
+    periodicHealingInterval: 0
+    delayAfterErrorHealing: 0
+    remoteDBProbingInterval: 0
     recordEventHistory: true
     eventHistoryAgeLimit: 60
     permanentlyRecordedInitPeriod: 10
@@ -92,10 +91,10 @@ metadata:
   namespace: kube-system
 data:
   govpp.conf: |
-    health-check-probe-interval: 3000000000
-    health-check-reply-timeout: 500000000
-    health-check-threshold: 3
-    reply-timeout: 3000000000
+    health-check-probe-interval: 0
+    health-check-reply-timeout: 0
+    health-check-threshold: 0
+    reply-timeout: 0
   logs.conf: |
     default-level: debug
     loggers:
@@ -123,7 +122,7 @@ data:
     file-mode: 432
     lock-timeout: 0
   telemetry.conf: |
-    polling-interval: 30000000000
+    polling-interval: 0
     disabled: true
   linux-ifplugin.conf: |
     dump-go-routines-count: 5
@@ -255,6 +254,8 @@ spec:
             periodSeconds: 3
             initialDelaySeconds: 20
           resources:
+            limits:
+              cpu: 0
             requests:
               cpu: 100m
       volumes:
@@ -546,6 +547,7 @@ spec:
             limits:
               hugepages-2Mi: 512Mi
               memory: 512Mi
+              cpu: 0
             requests:
               cpu: 250m
 
@@ -722,6 +724,8 @@ spec:
             failureThreshold: 3
             initialDelaySeconds: 30
           resources:
+            limits:
+              cpu: 0
             requests:
               cpu: 100m
       volumes:
@@ -913,6 +917,8 @@ spec:
             failureThreshold: 3
             initialDelaySeconds: 30
           resources:
+            limits:
+              cpu: 0
             requests:
               cpu: 100m
 
