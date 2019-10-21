@@ -210,9 +210,6 @@ func (rndr *Renderer) endPointType(sfc *renderer.ContivSFC, customNetworkName st
 
 // renderChain renders Contiv SFC to VPP configuration.
 func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.KeyValuePairs, err error) {
-	// TODO support external interfaces across whole renderer
-	// TODO remove all debug logging later
-
 	// SFC configuration correctness checks
 	config = make(controller.KeyValuePairs)
 	if sfc == nil {
@@ -324,7 +321,6 @@ func (rndr *Renderer) renderChain(sfc *renderer.ContivSFC) (config controller.Ke
 							"achieve route between local and remote sibling SFC links due to unability to generate "+
 							"node IP address from ID  %v", nodeIdentifier(sfSelectable))
 					}
-					// TODO rename SidForServiceNodeLocalsid and related config stuff to reflect usage in SFC
 					rndr.createRouteToMainVrf(rndr.IPAM.SidForServiceNodeLocalsid(otherNodeIP), podVRFID, config)
 				}
 				// NOTE: further routing to intermediate Localsid (Localsid that ends segment that only transports
@@ -412,7 +408,6 @@ func (rndr *Renderer) checkNetworkForExternalInterface(intf string, customNetwor
 
 // computePaths takes all resources selected for each SFC link and computes concrete paths for SFC chain
 func (rndr *Renderer) computePaths(sfc *renderer.ContivSFC) ([][]ServiceFunctionSelectable, error) {
-	// TODO support interfaces for end service functions
 	filteredChain := rndr.filterOnlyUsableServiceInstances(sfc)
 	rndr.Log.Debugf("creation of SFC chain %v will use only these service function instances: %v",
 		sfc.Name, strings.Join(rndr.toStringSlice(filteredChain), ","))
@@ -522,7 +517,7 @@ func (rndr *Renderer) filterOnlyUsableServiceInstances(sfc *renderer.ContivSFC) 
 				Type: link.Type,
 				Pods: filteredPods,
 			})
-		case renderer.ExternalInterface: // TODO implement filtering for interfaces
+		case renderer.ExternalInterface:
 			filteredChain = append(filteredChain, &renderer.ServiceFunction{
 				Type:               link.Type,
 				ExternalInterfaces: link.ExternalInterfaces,
@@ -928,9 +923,9 @@ func sidEndLocalSid(sfSelectable ServiceFunctionSelectable, i ipam.API, podVRF, 
 	case *renderer.InterfaceSF:
 		iface := selectable
 		if ipNet := i.GetExternalInterfaceIP(iface.InterfaceName, iface.NodeID); ipNet != nil {
-			return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, ipNet.IP), podVRF // TODO Main?
+			return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, ipNet.IP), podVRF
 		}
-		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, nil), podVRF // TODO Main?
+		return i.SidForSFCExternalIfLocalsid(iface.InterfaceName, nil), podVRF
 	default:
 		return nil, 0
 	}
