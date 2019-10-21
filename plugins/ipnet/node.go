@@ -1023,7 +1023,7 @@ func (n *IPNet) vxlanBridgeDomain(network string) (key string, config *vpp_l2.Br
 		UnknownUnicastFlood: false,
 		Interfaces: []*vpp_l2.BridgeDomain_Interface{
 			{
-				Name:                    n.vxlanBVIInterfaceName(network),
+				Name: n.vxlanBVIInterfaceName(network),
 				BridgedVirtualInterface: true,
 				SplitHorizonGroup:       vxlanSplitHorizonGroup,
 			},
@@ -1571,7 +1571,10 @@ func (n *IPNet) getNodeID(nodeName string) (uint32, bool) {
 	}
 	return 0, false
 }
-func (n *IPNet) notifyIpamExtIfChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
+
+// notifyIpamExtIfIPChange is passing an external interface IP change information
+// to IPAM plugin
+func (n *IPNet) notifyIpamExtIfIPChange(extIf *extifmodel.ExternalInterface, isDelete bool) {
 	for _, node := range extIf.Nodes {
 		if nodeID, ok := n.getNodeID(node.Node); ok {
 			_, nodeIPNet, err := net.ParseCIDR(node.Ip)
