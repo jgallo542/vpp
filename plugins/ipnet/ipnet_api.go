@@ -48,10 +48,6 @@ type API interface {
 	// external interface or error otherwise.
 	GetExternalIfNetworkName(ifName string) (string, error)
 
-	// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
-	// is not allocated yet for given network, it allocates the VRF table and returns its ID.
-	GetNetworkVrfID(networkName string) (vrf uint32, err error)
-
 	// GetPodByIf looks up name and namespace that is associated with logical interface name.
 	// The method can be called from outside of the main event loop.
 	GetPodByIf(ifname string) (podNamespace string, podName string, exists bool)
@@ -69,6 +65,20 @@ type API interface {
 	// GetVxlanBVIIfName returns the name of an BVI interface facing towards VXLAN tunnels to other hosts.
 	// Returns an empty string if VXLAN is not used (in no-overlay interconnect mode).
 	GetVxlanBVIIfName() string
+
+	// GetOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
+	// Allocates a new VNI if not already allocated.
+	GetOrAllocateVxlanVNI(networkName string) (vni uint32, err error)
+
+	// ReleaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
+	ReleaseVxlanVNI(networkName string) (err error)
+
+	// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
+	// Allocates a new VRF ID if not already allocated.
+	GetOrAllocateVrfID(networkName string) (vrf uint32, err error)
+
+	// ReleaseVrfID releases the allocated VRF ID number for the given network.
+	ReleaseVrfID(networkName string) (err error)
 }
 
 /*************************** Node IPv4 Change Event ***************************/

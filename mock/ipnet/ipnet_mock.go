@@ -39,6 +39,7 @@ type MockIPNet struct {
 	nodeIP                     *net.IPNet
 	hostInterconnect           string
 	vxlanBVIIfName             string
+	vniID                      uint32
 }
 
 // NewMockIPNet is a constructor for MockIPNet.
@@ -118,6 +119,7 @@ func (mn *MockIPNet) GetExternalIfName(extIfName string, vlan uint32) (ifName st
 	return fmt.Sprintf("%s.%d", extIfName, vlan)
 }
 
+// GetPodLoopIfName computes logical name of loop interface for given pod
 func (mn *MockIPNet) GetPodLoopIfName(podNamespace string, podName string) string {
 	return podLinuxLoopLogicalNamePrefix + "-" + podName + "-" + podNamespace
 }
@@ -164,6 +166,28 @@ func (mn *MockIPNet) GetHostIPs() []net.IP {
 	return mn.hostIPs
 }
 
+// GetOrAllocateVxlanVNI returns the allocated VXLAN VNI number for the given network.
+// Allocates a new VNI if not already allocated.
+func (mn *MockIPNet) GetOrAllocateVxlanVNI(networkName string) (vni uint32, err error) {
+	return mn.vniID, err
+}
+
+// ReleaseVxlanVNI releases the allocated VXLAN VNI number for the given network.
+func (mn *MockIPNet) ReleaseVxlanVNI(networkName string) (err error) {
+	return nil
+}
+
+// GetOrAllocateVrfID returns the allocated VRF ID number for the given network.
+// Allocates a new VRF ID if not already allocated.
+func (mn *MockIPNet) GetOrAllocateVrfID(networkName string) (vrf uint32, err error) {
+	return mn.networkToVRFID[networkName], err
+}
+
+// ReleaseVrfID releases the allocated VRF ID number for the given network.
+func (mn *MockIPNet) ReleaseVrfID(networkName string) (err error) {
+	return nil
+}
+
 // GetPodCustomIfNetworkName returns the name of custom network which should contain given
 // pod custom interface or error otherwise. This supports both type of pods, remote and local
 func (mn *MockIPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string) (string, error) {
@@ -174,10 +198,4 @@ func (mn *MockIPNet) GetPodCustomIfNetworkName(podID podmodel.ID, ifName string)
 // external interface or error otherwise.
 func (mn *MockIPNet) GetExternalIfNetworkName(ifName string) (string, error) {
 	return mn.externalInterfaceToNetwork[ifName], nil
-}
-
-// GetNetworkVrfID returns the allocated VRF ID number for the given custom/default network. If VRF table
-// is not allocated yet for given network, it allocates the VRF table and returns its ID.
-func (mn *MockIPNet) GetNetworkVrfID(networkName string) (vrf uint32, err error) {
-	return mn.networkToVRFID[networkName], nil
 }
