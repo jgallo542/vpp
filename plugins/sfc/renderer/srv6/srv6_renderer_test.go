@@ -20,6 +20,7 @@ import (
 	"net"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	extifmodel "github.com/contiv/vpp/plugins/crd/handler/externalinterface/model"
@@ -98,16 +99,27 @@ const (
 	pod3OutputInterfaceName = "pod3-tap2"
 	pod4InputInterfaceName  = "pod4-tap1"
 
-	pod1IP         = "2001::1:0:0:2:1"
-	pod1InputIfIP  = "2001::1:0:0:3:1"
-	pod2IP         = "2001::1:0:0:2:2"
-	pod2InputIfIP  = "2001::1:0:0:3:2"
-	pod2OutputIfIP = "2001::1:0:0:3:3"
-	pod3IP         = "2001::2:0:0:2:3"
-	pod3InputIfIP  = "2001::2:0:0:3:4"
-	pod3OutputIfIP = "2001::2:0:0:3:5"
-	pod4IP         = "2001::2:0:0:2:4"
-	pod4InputIfIP  = "2001::2:0:0:3:6"
+	pod1IPv6         = "2001::1:0:0:2:1"
+	pod1InputIfIPv6  = "2001::1:0:0:3:1"
+	pod2IPv6         = "2001::1:0:0:2:2"
+	pod2InputIfIPv6  = "2001::1:0:0:3:2"
+	pod2OutputIfIPv6 = "2001::1:0:0:3:3"
+	pod3IPv6         = "2001::2:0:0:2:3"
+	pod3InputIfIPv6  = "2001::2:0:0:3:4"
+	pod3OutputIfIPv6 = "2001::2:0:0:3:5"
+	pod4IPv6         = "2001::2:0:0:2:4"
+	pod4InputIfIPv6  = "2001::2:0:0:3:6"
+
+	pod1IPv4         = "10.1.1.1"
+	pod1InputIfIPv4  = "10.1.1.2"
+	pod2IPv4         = "10.1.1.3"
+	pod2InputIfIPv4  = "10.1.1.4"
+	pod2OutputIfIPv4 = "10.1.1.5"
+	pod3IPv4         = "10.1.2.1"
+	pod3InputIfIPv4  = "10.1.2.2"
+	pod3OutputIfIPv4 = "10.1.2.3"
+	pod4IPv4         = "10.1.2.4"
+	pod4InputIfIPv4  = "10.1.2.5"
 
 	pod1InputIfMAC  = "00:00:00:00:01:01"
 	pod2InputIfMAC  = "00:00:00:00:02:01"
@@ -118,17 +130,59 @@ const (
 
 	endExtIfName    = "endExtIf"
 	endExtIfVppName = "vpp-if2"
-	endExtIfIPNet   = "2001::2:0:0:1:2/128"
+	endExtIfIPv6Net = "2001::2:0:0:1:2/128"
+	endExtIfIPv4Net = "10.0.1.2/32"
 	endExtIfMAC     = "00:00:00:00:00:02"
 )
 
 var (
 	// master
-	nodeIPNetString        = "2005:0:0:0:0:0:16:10/112"
-	nodeIP, nodeNetwork, _ = net.ParseCIDR(nodeIPNetString)
-	nodeIPNet              = &net.IPNet{IP: nodeIP, Mask: nodeNetwork.Mask}
+	masterNodeIPNetString              = "2005:0:0:0:0:0:16:10/112"
+	masterNodeIP, masterNodeNetwork, _ = net.ParseCIDR(masterNodeIPNetString)
+	masterNodeIPNet                    = &net.IPNet{IP: masterNodeIP, Mask: masterNodeNetwork.Mask}
+	masterMgmtIP                       = net.ParseIP("2002:0:0:0:0:0:1:1")
 
-	mgmtIP = net.ParseIP("2002:0:0:0:0:0:1:1")
+	// worker
+	workerNodeIPNetString              = "2005:0:0:0:0:0:16:11/112"
+	workerNodeIP, workerNodeNetwork, _ = net.ParseCIDR(workerNodeIPNetString)
+	workerNodeIPNet                    = &net.IPNet{IP: workerNodeIP, Mask: workerNodeNetwork.Mask}
+	workerMgmtIP                       = net.ParseIP("2002:0:0:0:0:0:2:1")
+
+	ipV4Conf = &contivconf_config.Config{
+		InterfaceConfig: contivconf_config.InterfaceConfig{
+			UseTAPInterfaces:    true,
+			TAPInterfaceVersion: 2,
+			TAPv2RxRingSize:     1024,
+			TAPv2TxRingSize:     1024,
+		},
+		RoutingConfig: contivconf_config.RoutingConfig{
+			NodeToNodeTransport:               "srv6",
+			UseSRv6ForServiceFunctionChaining: true,
+		},
+		IPAMConfig: contivconf_config.IPAMConfig{
+			NodeInterconnectCIDR:          "e10:f00d::/90",
+			PodSubnetCIDR:                 "10.1.0.0/16",
+			PodSubnetOneNodePrefixLen:     24,
+			VPPHostSubnetCIDR:             "172.30.0.0/16",
+			VPPHostSubnetOneNodePrefixLen: 24,
+			VxlanCIDR:                     "192.168.30.0/24",
+			ServiceCIDR:                   "10.96.0.0/12",
+			SRv6: contivconf_config.SRv6Config{
+				ServicePolicyBSIDSubnetCIDR:            "8fff::/16",
+				ServicePodLocalSIDSubnetCIDR:           "9300::/16",
+				ServiceHostLocalSIDSubnetCIDR:          "9300::/16",
+				ServiceNodeLocalSIDSubnetCIDR:          "9000::/16",
+				NodeToNodePodLocalSIDSubnetCIDR:        "9501::/16",
+				NodeToNodeHostLocalSIDSubnetCIDR:       "9500::/16",
+				NodeToNodePodPolicySIDSubnetCIDR:       "8501::/16",
+				NodeToNodeHostPolicySIDSubnetCIDR:      "8500::/16",
+				SFCPolicyBSIDSubnetCIDR:                "8eee::/16",
+				SFCServiceFunctionSIDSubnetCIDR:        "9600::/16",
+				SFCEndLocalSIDSubnetCIDR:               "9310::/16",
+				SFCIDLengthUsedInSidForServiceFunction: 16,
+			},
+		},
+	}
 
 	ipV6Conf = &contivconf_config.Config{
 		InterfaceConfig: contivconf_config.InterfaceConfig{
@@ -197,18 +251,18 @@ type sfcConfig struct {
 func TestCreatePodToPodIPV6Chain(t *testing.T) {
 	RegisterTestingT(t)
 
-	fixture := newFixture("TestCreatePodToPodIPV6Chain")
+	fixture := newFixture(Master, 6, "TestCreatePodToPodIPV6Chain")
 
 	// Checking configuration on master node
-	masterConfig := expectedPodToPodConfig(Master, fixture)
+	masterConfig := expectedPodToPodConfig(Master, 6, fixture)
 	assertConfig(false, masterConfig, fixture)
 	setupPodToPodChain(Master, 6, fixture)
 	assertConfig(true, masterConfig, fixture)
 
-	initFixture(fixture) // reset fixture to be able to check worker node
+	initFixture(Worker, 6, fixture) // reset fixture to be able to check worker node
 
 	// Checking configuration on worker node
-	workerConfig := expectedPodToPodConfig(Worker, fixture)
+	workerConfig := expectedPodToPodConfig(Worker, 6, fixture)
 	assertConfig(false, workerConfig, fixture)
 	setupPodToPodChain(Worker, 6, fixture)
 	assertConfig(true, workerConfig, fixture)
@@ -219,33 +273,110 @@ func TestCreatePodToPodIPV6Chain(t *testing.T) {
 func TestDeletePodToPodIPV6Chain(t *testing.T) {
 	RegisterTestingT(t)
 
-	fixture := newFixture("TestDeletePodToPodIPV6Chain")
+	fixture := newFixture(Master, 6, "TestDeletePodToPodIPV6Chain")
 
 	// Checking configuration removal on master node
-	masterConfig := expectedPodToPodConfig(Master, fixture)
+	masterConfig := expectedPodToPodConfig(Master, 6, fixture)
 	setupPodToPodChain(Master, 6, fixture)
 	// remove for not enough pods
-	removePod(pod1ID(), pod1IP, 0, fixture)
+	removePod(pod1ID(), pod1IP(6), 0, fixture)
 	assertConfig(false, masterConfig, fixture)
 	// remove SFC resource
-	initFixture(fixture)
+	initFixture(Master, 6, fixture)
 	sfc := setupPodToPodChain(Master, 6, fixture)
 	removeSFC(sfc, fixture)
 	assertConfig(false, masterConfig, fixture)
 
-	initFixture(fixture) // reset fixture to be able to check worker node
+	initFixture(Worker, 6, fixture) // reset fixture to be able to check worker node
 
 	// Checking configuration removal on worker node
-	workerConfig := expectedPodToPodConfig(Worker, fixture)
+	workerConfig := expectedPodToPodConfig(Worker, 6, fixture)
 	setupPodToPodChain(Worker, 6, fixture)
 	// remove for not enough pods
-	removePod(pod3ID(), pod3IP, 0, fixture)
+	removePod(pod3ID(), pod3IP(6), 0, fixture)
 	assertConfig(false, workerConfig, fixture)
 	// remove SFC resource
-	initFixture(fixture)
+	initFixture(Worker, 6, fixture)
 	sfc = setupPodToPodChain(Worker, 6, fixture)
 	removeSFC(sfc, fixture)
 	assertConfig(false, workerConfig, fixture)
+}
+
+// TestCreatePodToPodIPV4Chain tests simple IPv4 Pod-to-Pod
+// service function chain (Master:|Pod -> Pod| -> Worker:|Pod -> Pod|)
+func TestCreatePodToPodIPV4Chain(t *testing.T) {
+	RegisterTestingT(t)
+
+	fixture := newFixture(Master, 4, "TestCreatePodToPodIPV4Chain")
+
+	// Checking configuration on master node
+	masterConfig := expectedPodToPodConfig(Master, 4, fixture)
+	assertConfig(false, masterConfig, fixture)
+	setupPodToPodChain(Master, 4, fixture)
+	assertConfig(true, masterConfig, fixture)
+
+	initFixture(Worker, 4, fixture) // reset fixture to be able to check worker node
+
+	// Checking configuration on worker node
+	workerConfig := expectedPodToPodConfig(Worker, 4, fixture)
+	assertConfig(false, workerConfig, fixture)
+	setupPodToPodChain(Worker, 4, fixture)
+	assertConfig(true, workerConfig, fixture)
+}
+
+// TestDeletePodToPodIPV4Chain tests SFC chain removal for
+// simple IPv4 Pod-to-Pod service function chain (Master:|Pod -> Pod| -> Worker:|Pod -> Pod|)
+func TestDeletePodToPodIPV4Chain(t *testing.T) {
+	RegisterTestingT(t)
+
+	fixture := newFixture(Master, 4, "TestDeletePodToPodIPV4Chain")
+
+	// Checking configuration removal on master node
+	masterConfig := expectedPodToPodConfig(Master, 4, fixture)
+	setupPodToPodChain(Master, 4, fixture)
+	// remove for not enough pods
+	removePod(pod1ID(), pod1IP(4), 0, fixture)
+	assertConfig(false, masterConfig, fixture)
+	// remove SFC resource
+	initFixture(Master, 4, fixture)
+	sfc := setupPodToPodChain(Master, 4, fixture)
+	removeSFC(sfc, fixture)
+	assertConfig(false, masterConfig, fixture)
+
+	initFixture(Worker, 4, fixture) // reset fixture to be able to check worker node
+
+	// Checking configuration removal on worker node
+	workerConfig := expectedPodToPodConfig(Worker, 4, fixture)
+	setupPodToPodChain(Worker, 4, fixture)
+	// remove for not enough pods
+	removePod(pod3ID(), pod3IP(4), 0, fixture)
+	assertConfig(false, workerConfig, fixture)
+	// remove SFC resource
+	initFixture(Worker, 4, fixture)
+	sfc = setupPodToPodChain(Worker, 4, fixture)
+	removeSFC(sfc, fixture)
+	assertConfig(false, workerConfig, fixture)
+}
+
+// TestCreatePodToInterfaceIPV6Chain
+func TestCreatePodToInterfaceIPV6Chain(t *testing.T) {
+	RegisterTestingT(t)
+
+	fixture := newFixture(Master, 6, "TestCreatePodToInterfaceIPV6Chain")
+
+	// Checking configuration on master node
+	masterConfig := expectedPodToInterfaceConfig(Master, 6, fixture)
+	assertConfig(false, masterConfig, fixture)
+	setupPodToInterfaceChain(Master, 6, fixture)
+	assertConfig(true, masterConfig, fixture)
+
+	initFixture(Worker, 6, fixture) // reset fixture to be able to check worker node
+
+	// Checking configuration on worker node
+	workerConfig := expectedPodToInterfaceConfig(Worker, 6, fixture)
+	assertConfig(false, workerConfig, fixture)
+	setupPodToInterfaceChain(Worker, 6, fixture)
+	assertConfig(true, workerConfig, fixture)
 }
 
 func assertConfig(exists bool, c *sfcConfig, fixture *Fixture) {
@@ -272,7 +403,7 @@ func assertConfig(exists bool, c *sfcConfig, fixture *Fixture) {
 	}
 }
 
-func initFixture(fixture *Fixture) {
+func initFixture(node Node, ipVer uint32, fixture *Fixture) {
 	// Tracker of ongoing transaction
 	fixture.Txn = &Txn{}
 
@@ -292,9 +423,36 @@ func initFixture(fixture *Fixture) {
 	// Datasync
 	fixture.Datasync = NewMockDataSync()
 
+	var nodeID uint32
+	var nodeLabel string
+	if node == Master {
+		nodeID = MasterID
+		nodeLabel = MasterLabel
+	} else {
+		nodeID = WorkerID
+		nodeLabel = WorkerLabel
+	}
+
 	// mock service label
 	fixture.ServiceLabel = NewMockServiceLabel()
-	fixture.ServiceLabel.SetAgentLabel(MasterLabel)
+	fixture.ServiceLabel.SetAgentLabel(nodeLabel)
+
+	fixture.NodeSync = NewMockNodeSync(nodeLabel)
+	fixture.NodeSync.UpdateNode(&nodesync.Node{
+		Name:            MasterLabel,
+		ID:              MasterID,
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: masterNodeIP, Network: masterNodeIPNet}},
+		MgmtIPAddresses: []net.IP{masterMgmtIP},
+	})
+
+	fixture.NodeSync.UpdateNode(&nodesync.Node{
+		Name:            WorkerLabel,
+		ID:              WorkerID,
+		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: workerNodeIP, Network: workerNodeIPNet}},
+		MgmtIPAddresses: []net.IP{workerMgmtIP},
+	})
+
+	Expect(fixture.NodeSync.GetNodeID()).To(BeEquivalentTo(nodeID))
 
 	// contivConf plugin
 	fixture.ContivConf = &contivconf.ContivConf{
@@ -303,24 +461,18 @@ func initFixture(fixture *Fixture) {
 				Log: logging.ForPlugin("contivconf"),
 			},
 			ServiceLabel: fixture.ServiceLabel,
-			UnitTestDeps: &contivconf.UnitTestDeps{
-				Config: ipV6Conf,
-			},
+			UnitTestDeps: &contivconf.UnitTestDeps{},
 		},
+	}
+	if ipVer == 6 {
+		fixture.ContivConf.UnitTestDeps.Config = ipV6Conf
+	} else {
+		fixture.ContivConf.UnitTestDeps.Config = ipV4Conf
 	}
 
 	Expect(fixture.ContivConf.Init()).To(BeNil())
 	resyncEv, _ := fixture.Datasync.ResyncEvent()
 	Expect(fixture.ContivConf.Resync(resyncEv, resyncEv.KubeState, 1, nil)).To(BeNil())
-
-	fixture.NodeSync = NewMockNodeSync(MasterLabel)
-	fixture.NodeSync.UpdateNode(&nodesync.Node{
-		Name:            MasterLabel,
-		ID:              MasterID,
-		VppIPAddresses:  contivconf.IPsWithNetworks{{Address: nodeIP, Network: nodeIPNet}},
-		MgmtIPAddresses: []net.IP{mgmtIP},
-	})
-	Expect(fixture.NodeSync.GetNodeID()).To(BeEquivalentTo(MasterID))
 
 	// IPAM real plugin
 	fixture.IPAM = &ipam.IPAM{
@@ -376,7 +528,7 @@ func initFixture(fixture *Fixture) {
 	Expect(fixture.SFCProcessor.RegisterRenderer(fixture.renderer)).To(BeNil())
 }
 
-func newFixture(testName string) *Fixture {
+func newFixture(node Node, ipVer uint32, testName string) *Fixture {
 	fixture := &Fixture{}
 
 	// Logger
@@ -384,7 +536,7 @@ func newFixture(testName string) *Fixture {
 	fixture.Log.SetLevel(logging.DebugLevel)
 	fixture.Log.Debug(testName)
 
-	initFixture(fixture)
+	initFixture(node, ipVer, fixture)
 
 	return fixture
 }
@@ -639,6 +791,14 @@ func hasPolicy(policy *vpp_srv6.Policy, policies map[string]*vpp_srv6.Policy) bo
 	return false
 }
 
+// isIPv6Str returns true if the string contains IPv6 address, false otherwise.
+func isIPv6Str(ip string) bool {
+	if ip == "" {
+		return false
+	}
+	return strings.Contains(ip, ":")
+}
+
 func getPodToPodChain(node Node) (sfc *renderer.ContivSFC) {
 	// create SFC configuration
 	pod1 := &renderer.PodSF{
@@ -718,19 +878,19 @@ func getPodToPodChain(node Node) (sfc *renderer.ContivSFC) {
 
 func setupPodToPodChain(node Node, ipVer uint32, fixture *Fixture) *renderer.ContivSFC {
 	// spawn the pods
-	addPod(pod1ID(), pod1IP, node == Master, 0, fixture)
-	addPodCustomIf(pod1ID(), pod1InputInterfaceName, pod1InputIfIP, pod1InputIfMAC, fixture)
+	addPod(pod1ID(), pod1IP(ipVer), node == Master, 0, fixture)
+	addPodCustomIf(pod1ID(), pod1InputInterfaceName, pod1InputIfIP(ipVer), pod1InputIfMAC, fixture)
 
-	addPod(pod2ID(), pod2IP, node == Master, 1, fixture)
-	addPodCustomIf(pod2ID(), pod2InputInterfaceName, pod2InputIfIP, pod2InputIfMAC, fixture)
-	addPodCustomIf(pod2ID(), pod2OutputInterfaceName, pod2OutputIfIP, pod2OutputIfMAC, fixture)
+	addPod(pod2ID(), pod2IP(ipVer), node == Master, 1, fixture)
+	addPodCustomIf(pod2ID(), pod2InputInterfaceName, pod2InputIfIP(ipVer), pod2InputIfMAC, fixture)
+	addPodCustomIf(pod2ID(), pod2OutputInterfaceName, pod2OutputIfIP(ipVer), pod2OutputIfMAC, fixture)
 
-	addPod(pod3ID(), pod3IP, node == Worker, 2, fixture)
-	addPodCustomIf(pod3ID(), pod3InputInterfaceName, pod3InputIfIP, pod3InputIfMAC, fixture)
-	addPodCustomIf(pod3ID(), pod3OutputInterfaceName, pod3OutputIfIP, pod3OutputIfMAC, fixture)
+	addPod(pod3ID(), pod3IP(ipVer), node == Worker, 2, fixture)
+	addPodCustomIf(pod3ID(), pod3InputInterfaceName, pod3InputIfIP(ipVer), pod3InputIfMAC, fixture)
+	addPodCustomIf(pod3ID(), pod3OutputInterfaceName, pod3OutputIfIP(ipVer), pod3OutputIfMAC, fixture)
 
-	addPod(pod4ID(), pod4IP, node == Worker, 3, fixture)
-	addPodCustomIf(pod4ID(), pod4InputInterfaceName, pod4InputIfIP, pod4InputIfMAC, fixture)
+	addPod(pod4ID(), pod4IP(ipVer), node == Worker, 3, fixture)
+	addPodCustomIf(pod4ID(), pod4InputInterfaceName, pod4InputIfIP(ipVer), pod4InputIfMAC, fixture)
 
 	//apply SFC resource
 	sfc := getPodToPodChain(node)
@@ -741,11 +901,11 @@ func setupPodToPodChain(node Node, ipVer uint32, fixture *Fixture) *renderer.Con
 
 // TODO test also non-SRv6 related configurations (routes,...)
 // expectedPodToPodConfig computes all SRv6 components that are expected to appear from SRv6 renderer
-func expectedPodToPodConfig(node Node, fixture *Fixture) *sfcConfig {
+func expectedPodToPodConfig(node Node, ipVer uint32, fixture *Fixture) *sfcConfig {
 	// expected configuration
-	localSID1 := sfLocalSID(pod2IP, pod2InputIfIP, pod2InputInterfaceName, pod2OutputInterfaceName, fixture)
-	localSID2 := sfLocalSID(pod3IP, pod3InputIfIP, pod3InputInterfaceName, pod3OutputInterfaceName, fixture)
-	localSID3 := endPodLocalSID(pod4IP, pod4InputIfIP, pod4InputInterfaceName, fixture)
+	localSID1 := sfLocalSID(pod2IP(ipVer), pod2InputIfIP(ipVer), pod2InputInterfaceName, pod2OutputInterfaceName, fixture)
+	localSID2 := sfLocalSID(pod3IP(ipVer), pod3InputIfIP(ipVer), pod3InputInterfaceName, pod3OutputInterfaceName, fixture)
+	localSID3 := endPodLocalSID(pod4IP(ipVer), pod4InputIfIP(ipVer), pod4InputInterfaceName, fixture)
 
 	if node == Master {
 		workerNodeIP, _, _ := fixture.IPAM.NodeIPAddress(WorkerID)
@@ -753,7 +913,7 @@ func expectedPodToPodConfig(node Node, fixture *Fixture) *sfcConfig {
 
 		policy := policy([]string{localSID1.Sid, localSIDWorkerNode.String(), localSID2.Sid, localSID3.Sid}, fixture)
 
-		endIPNet := net.IPNet{IP: net.ParseIP(pod4InputIfIP), Mask: net.CIDRMask(128, 128)}
+		endIPNet := net.IPNet{IP: net.ParseIP(pod4InputIfIP(ipVer)), Mask: net.CIDRMask(128, 128)}
 		l3Steering := steering(fixture.IPAM.BsidForSFCPolicy(SFCName).String(), "", endIPNet.String())
 		return &sfcConfig{ // Expected worker config
 			Policy:   policy,
@@ -847,20 +1007,20 @@ func getPodToInterfaceChain(node Node) (sfc *renderer.ContivSFC) {
 	return
 }
 
-func setupPodToInterfaceChain(node Node, ipver uint32, fixture *Fixture) *renderer.ContivSFC {
+func setupPodToInterfaceChain(node Node, ipVer uint32, fixture *Fixture) *renderer.ContivSFC {
 	// spawn the pods
-	addPod(pod1ID(), pod1IP, node == Master, 0, fixture)
-	addPodCustomIf(pod1ID(), pod1InputInterfaceName, pod1InputIfIP, pod1InputIfMAC, fixture)
+	addPod(pod1ID(), pod1IP(ipVer), node == Master, 0, fixture)
+	addPodCustomIf(pod1ID(), pod1InputInterfaceName, pod1InputIfIP(ipVer), pod1InputIfMAC, fixture)
 
-	addPod(pod2ID(), pod2IP, node == Master, 1, fixture)
-	addPodCustomIf(pod2ID(), pod2InputInterfaceName, pod2InputIfIP, pod2InputIfMAC, fixture)
-	addPodCustomIf(pod2ID(), pod2OutputInterfaceName, pod2OutputIfIP, pod2OutputIfMAC, fixture)
+	addPod(pod2ID(), pod2IP(ipVer), node == Master, 1, fixture)
+	addPodCustomIf(pod2ID(), pod2InputInterfaceName, pod2InputIfIP(ipVer), pod2InputIfMAC, fixture)
+	addPodCustomIf(pod2ID(), pod2OutputInterfaceName, pod2OutputIfIP(ipVer), pod2OutputIfMAC, fixture)
 
-	addPod(pod3ID(), pod3IP, node == Worker, 2, fixture)
-	addPodCustomIf(pod3ID(), pod3InputInterfaceName, pod3InputIfIP, pod3InputIfMAC, fixture)
-	addPodCustomIf(pod3ID(), pod3OutputInterfaceName, pod3OutputIfIP, pod3OutputIfMAC, fixture)
+	addPod(pod3ID(), pod3IP(ipVer), node == Worker, 2, fixture)
+	addPodCustomIf(pod3ID(), pod3InputInterfaceName, pod3InputIfIP(ipVer), pod3InputIfMAC, fixture)
+	addPodCustomIf(pod3ID(), pod3OutputInterfaceName, pod3OutputIfIP(ipVer), pod3OutputIfMAC, fixture)
 
-	addExternalInterface(endExtIfName, endExtIfVppName, endExtIfIPNet, endExtIfMAC, WorkerID, fixture)
+	addExternalInterface(endExtIfName, endExtIfVppName, endExtIfIPNet(ipVer), endExtIfMAC, WorkerID, fixture)
 
 	//apply SFC resource
 	sfc := getPodToInterfaceChain(node)
@@ -869,22 +1029,33 @@ func setupPodToInterfaceChain(node Node, ipver uint32, fixture *Fixture) *render
 	return sfc
 }
 
-func expectedPodToInterfaceConfig(ipVer uint32, fixture *Fixture) *sfcConfig {
+// TODO test also non-SRv6 related configurations (routes,...)
+// expectedPodToInterfaceConfig computes all SRv6 components that are expected to appear from SRv6 renderer
+func expectedPodToInterfaceConfig(node Node, ipVer uint32, fixture *Fixture) *sfcConfig {
 	// expected configuration
-	localSID1 := sfLocalSID(pod2IP, pod2InputIfIP, pod2InputInterfaceName, pod2OutputInterfaceName, fixture)
-	localSID2 := sfLocalSID(pod3IP, pod3InputIfIP, pod3InputInterfaceName, pod3OutputInterfaceName, fixture)
-	localSID3 := endInterfaceLocalSID(endExtIfName, endExtIfVppName, endExtIfIPNet, fixture)
+	localSID1 := sfLocalSID(pod2IP(ipVer), pod2InputIfIP(ipVer), pod2InputInterfaceName, pod2OutputInterfaceName, fixture)
+	localSID2 := sfLocalSID(pod3IP(ipVer), pod3InputIfIP(ipVer), pod3InputInterfaceName, pod3OutputInterfaceName, fixture)
+	localSID3 := endInterfaceLocalSID(endExtIfName, endExtIfVppName, endExtIfIPNet(ipVer), fixture)
 
-	policy := policy([]string{localSID1.Sid, localSID2.Sid, localSID3.Sid}, fixture)
+	if node == Master {
+		workerNodeIP, _, _ := fixture.IPAM.NodeIPAddress(WorkerID)
+		localSIDWorkerNode := fixture.IPAM.SidForServiceNodeLocalsid(workerNodeIP.To16())
 
-	_, endIPNet, _ := net.ParseCIDR(endExtIfIPNet)
-	l3Steering := steering(policy.Bsid, "", endIPNet.String())
+		policy := policy([]string{localSID1.Sid, localSIDWorkerNode.String(), localSID2.Sid, localSID3.Sid}, fixture)
 
-	return &sfcConfig{
-		Policy:   policy,
-		Steering: l3Steering,
+		_, endIPNet, _ := net.ParseCIDR(endExtIfIPNet(ipVer))
+		l3Steering := steering(fixture.IPAM.BsidForSFCPolicy(SFCName).String(), "", endIPNet.String())
+		return &sfcConfig{ // Expected worker config
+			Policy:   policy,
+			Steering: l3Steering,
+			Localsids: []*vpp_srv6.LocalSID{
+				localSID1,
+			},
+		}
+	}
+
+	return &sfcConfig{ // Expected worker config
 		Localsids: []*vpp_srv6.LocalSID{
-			localSID1,
 			localSID2,
 			localSID3,
 		},
@@ -904,12 +1075,36 @@ func sfLocalSID(ip, l3Addr, outInterface, inInterface string, fixture *Fixture) 
 }
 
 func endPodLocalSID(ip, nextHop, outInterface string, fixture *Fixture) *vpp_srv6.LocalSID {
-	return &vpp_srv6.LocalSID{
+	if ip != "" {
+		if isIPv6Str(ip) { // L3 IPv6
+			return &vpp_srv6.LocalSID{
+				Sid:               fixture.IPAM.SidForSFCEndLocalsid(net.ParseIP(ip).To16()).String(),
+				InstallationVrfId: PodVrfID,
+				EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
+					EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+						NextHop:           nextHop,
+						OutgoingInterface: outInterface,
+					},
+				},
+			}
+		}
+		return &vpp_srv6.LocalSID{ // L3 IPv4
+			Sid:               fixture.IPAM.SidForSFCEndLocalsid(net.ParseIP(ip).To16()).String(),
+			InstallationVrfId: PodVrfID,
+			EndFunction: &vpp_srv6.LocalSID_EndFunction_DX4{
+				EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+					NextHop:           nextHop,
+					OutgoingInterface: outInterface,
+				},
+			},
+		}
+	}
+
+	return &vpp_srv6.LocalSID{ // L2
 		Sid:               fixture.IPAM.SidForSFCEndLocalsid(net.ParseIP(ip).To16()).String(),
 		InstallationVrfId: PodVrfID,
-		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           nextHop,
+		EndFunction: &vpp_srv6.LocalSID_EndFunction_DX2{
+			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
 				OutgoingInterface: outInterface,
 			},
 		},
@@ -922,14 +1117,24 @@ func endInterfaceLocalSID(name, vppInterface, ifIPNet string, fixture *Fixture) 
 	}
 
 	if ip, _, err := net.ParseCIDR(ifIPNet); err == nil {
-		endLocalSID.Sid = fixture.IPAM.SidForSFCExternalIfLocalsid(name, ip).String()
-		endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
-			EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
-				NextHop:           ip.String(),
-				OutgoingInterface: vppInterface,
-			},
+		if isIPv6Str(ip.String()) { // L3 IPv6
+			endLocalSID.Sid = fixture.IPAM.SidForSFCExternalIfLocalsid(name, ip).String()
+			endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX6{
+				EndFunction_DX6: &vpp_srv6.LocalSID_EndDX6{
+					NextHop:           ip.String(),
+					OutgoingInterface: vppInterface,
+				},
+			}
+		} else { // L3 IPv4
+			endLocalSID.Sid = fixture.IPAM.SidForSFCExternalIfLocalsid(name, ip).String()
+			endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX4{
+				EndFunction_DX4: &vpp_srv6.LocalSID_EndDX4{
+					NextHop:           ip.String(),
+					OutgoingInterface: vppInterface,
+				},
+			}
 		}
-	} else {
+	} else { // L2
 		endLocalSID.Sid = fixture.IPAM.SidForSFCExternalIfLocalsid(name, nil).String()
 		endLocalSID.EndFunction = &vpp_srv6.LocalSID_EndFunction_DX2{
 			EndFunction_DX2: &vpp_srv6.LocalSID_EndDX2{
@@ -1015,4 +1220,136 @@ func pod4ID() podmodel.ID {
 		Name:      pod4Name,
 		Namespace: "default",
 	}
+}
+
+func pod1IP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod1IPv4
+	case 6:
+		return pod1IPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod1InputIfIP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod1InputIfIPv4
+	case 6:
+		return pod1InputIfIPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod2IP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod2IPv4
+	case 6:
+		return pod2IPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod2InputIfIP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod2InputIfIPv4
+	case 6:
+		return pod2InputIfIPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod2OutputIfIP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod2OutputIfIPv4
+	case 6:
+		return pod2OutputIfIPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod3IP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod3IPv4
+	case 6:
+		return pod3IPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod3InputIfIP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod3InputIfIPv4
+	case 6:
+		return pod3InputIfIPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod3OutputIfIP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod3OutputIfIPv4
+	case 6:
+		return pod3OutputIfIPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod4IP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod4IPv4
+	case 6:
+		return pod4IPv6
+	default:
+		return ""
+	}
+
+}
+
+func pod4InputIfIP(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return pod4InputIfIPv4
+	case 6:
+		return pod4InputIfIPv6
+	default:
+		return ""
+	}
+
+}
+
+func endExtIfIPNet(ipVer uint32) string {
+	switch ipVer {
+	case 4:
+		return endExtIfIPv4Net
+	case 6:
+		return endExtIfIPv6Net
+	default:
+		return ""
+	}
+
 }
